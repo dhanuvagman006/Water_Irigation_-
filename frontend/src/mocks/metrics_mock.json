@@ -1,0 +1,26 @@
+{
+  "rainfall": [
+    { "model": "LSTM", "rmse": 2.34, "mae": 1.87, "r2": 0.924, "nse": 0.918 },
+    { "model": "GRU", "rmse": 2.56, "mae": 2.01, "r2": 0.912, "nse": 0.905 },
+    { "model": "BiLSTM", "rmse": 2.12, "mae": 1.68, "r2": 0.938, "nse": 0.932 },
+    { "model": "CNN-LSTM", "rmse": 2.45, "mae": 1.92, "r2": 0.919, "nse": 0.911 },
+    { "model": "Transformer", "rmse": 2.08, "mae": 1.62, "r2": 0.942, "nse": 0.937 },
+    { "model": "StackedLSTM", "rmse": 2.28, "mae": 1.79, "r2": 0.928, "nse": 0.922 }
+  ],
+  "tank": [
+    { "model": "LSTM", "rmse": 4.12, "mae": 3.24, "r2": 0.891, "nse": 0.884, "accuracy": 0.89, "f1": 0.87 },
+    { "model": "GRU", "rmse": 4.45, "mae": 3.51, "r2": 0.878, "nse": 0.869, "accuracy": 0.86, "f1": 0.84 },
+    { "model": "BiLSTM", "rmse": 3.89, "mae": 3.02, "r2": 0.905, "nse": 0.898, "accuracy": 0.91, "f1": 0.90 },
+    { "model": "CNN-LSTM", "rmse": 4.23, "mae": 3.35, "r2": 0.885, "nse": 0.877, "accuracy": 0.88, "f1": 0.86 },
+    { "model": "Transformer", "rmse": 3.76, "mae": 2.89, "r2": 0.912, "nse": 0.906, "accuracy": 0.92, "f1": 0.91 },
+    { "model": "StackedLSTM", "rmse": 4.01, "mae": 3.15, "r2": 0.896, "nse": 0.889, "accuracy": 0.90, "f1": 0.88 }
+  ],
+  "irrigation": [
+    { "model": "LSTM", "rmse": 3.56, "mae": 2.78, "r2": 0.901, "nse": 0.894, "accuracy": 0.91, "f1": 0.89 },
+    { "model": "GRU", "rmse": 3.82, "mae": 3.02, "r2": 0.889, "nse": 0.881, "accuracy": 0.88, "f1": 0.86 },
+    { "model": "BiLSTM", "rmse": 3.34, "mae": 2.56, "r2": 0.915, "nse": 0.909, "accuracy": 0.93, "f1": 0.92 },
+    { "model": "CNN-LSTM", "rmse": 3.67, "mae": 2.89, "r2": 0.895, "nse": 0.887, "accuracy": 0.90, "f1": 0.88 },
+    { "model": "Transformer", "rmse": 3.21, "mae": 2.45, "r2": 0.922, "nse": 0.916, "accuracy": 0.94, "f1": 0.93 },
+    { "model": "StackedLSTM", "rmse": 3.45, "mae": 2.67, "r2": 0.908, "nse": 0.901, "accuracy": 0.92, "f1": 0.90 }
+  ]
+}

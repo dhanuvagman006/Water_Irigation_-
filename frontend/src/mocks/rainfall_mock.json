@@ -1,0 +1,16 @@
+[
+  { "date": "2026-04-12", "predicted_mm": 2.3, "actual_mm": 1.8, "model": "LSTM" },
+  { "date": "2026-04-13", "predicted_mm": 5.7, "actual_mm": 6.1, "model": "LSTM" },
+  { "date": "2026-04-14", "predicted_mm": 12.4, "actual_mm": 14.2, "model": "LSTM" },
+  { "date": "2026-04-15", "predicted_mm": 18.6, "actual_mm": 16.9, "model": "LSTM" },
+  { "date": "2026-04-16", "predicted_mm": 25.1, "actual_mm": 28.3, "model": "LSTM" },
+  { "date": "2026-04-17", "predicted_mm": 8.3, "actual_mm": 7.5, "model": "LSTM" },
+  { "date": "2026-04-18", "predicted_mm": 3.1, "actual_mm": 2.9, "model": "LSTM" },
+  { "date": "2026-04-19", "predicted_mm": 0.5, "model": "LSTM" },
+  { "date": "2026-04-20", "predicted_mm": 1.2, "model": "LSTM" },
+  { "date": "2026-04-21", "predicted_mm": 15.8, "model": "LSTM" },
+  { "date": "2026-04-22", "predicted_mm": 22.4, "model": "LSTM" },
+  { "date": "2026-04-23", "predicted_mm": 31.2, "model": "LSTM" },
+  { "date": "2026-04-24", "predicted_mm": 14.6, "model": "LSTM" },
+  { "date": "2026-04-25", "predicted_mm": 7.9, "model": "LSTM" }
+]

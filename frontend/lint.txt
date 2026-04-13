@@ -1,0 +1,87 @@
+
+> frontend@0.0.0 lint
+> eslint .
+
+
+D:\Water_Irigation\frontend\src\components\charts\IrrigationHeatmap.tsx
+   1:10  error  'Tooltip' is defined but never used                @typescript-eslint/no-unused-vars
+   1:19  error  'ResponsiveContainer' is defined but never used    @typescript-eslint/no-unused-vars
+  20:10  error  'getIntensityColorDark' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Water_Irigation\frontend\src\components\charts\RainfallLineChart.tsx
+  12:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Water_Irigation\frontend\src\components\charts\TankLevelBarChart.tsx
+  11:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Water_Irigation\frontend\src\pages\Dashboard.tsx
+   21:22  error    'DECISION_COLORS' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  108:17  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+D:\Water_Irigation\frontend\src\pages\Dashboard.tsx:108:17
+  106 |   ], [])
+  107 |
+> 108 |   const table = useReactTable({
+      |                 ^^^^^^^^^^^^^ TanStack Table's `useReactTable()` API returns functions that cannot be memoized safely
+  109 |     data: summaryData,
+  110 |     columns,
+  111 |     getCoreRowModel: getCoreRowModel(),  react-hooks/incompatible-library
+
+D:\Water_Irigation\frontend\src\pages\IrrigationPage.tsx
+   14:35  error    'DECISION_COLORS' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   97:17  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+D:\Water_Irigation\frontend\src\pages\IrrigationPage.tsx:97:17
+   95 |   ], [])
+   96 |
+>  97 |   const table = useReactTable({
+      |                 ^^^^^^^^^^^^^ TanStack Table's `useReactTable()` API returns functions that cannot be memoized safely
+   98 |     data: plans,
+   99 |     columns,
+  100 |     state: { sorting },  react-hooks/incompatible-library
+  183:51  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-explicit-any
+
+D:\Water_Irigation\frontend\src\pages\ModelComparisonPage.tsx
+   10:8   error    'ModelMetricCard' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   15:10  error    'formatMetric' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   53:9   warning  The 'currentMetrics' logical expression could make the dependencies of useMemo Hook (at line 58) change on every render. To fix this, wrap the initialization of 'currentMetrics' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+   53:9   warning  The 'currentMetrics' logical expression could make the dependencies of useMemo Hook (at line 144) change on every render. To fix this, wrap the initialization of 'currentMetrics' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/exhaustive-deps
+  146:17  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+D:\Water_Irigation\frontend\src\pages\ModelComparisonPage.tsx:146:17
+  144 |   ], [currentMetrics, bestModel])
+  145 |
+> 146 |   const table = useReactTable({
+      |                 ^^^^^^^^^^^^^ TanStack Table's `useReactTable()` API returns functions that cannot be memoized safely
+  147 |     data: currentMetrics,
+  148 |     columns,
+  149 |     state: { sorting },  react-hooks/incompatible-library
+  166:6   warning  React Hook useMemo has a missing dependency: 'metricsMap'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+
+D:\Water_Irigation\frontend\src\pages\RainfallPage.tsx
+   18:22  error    'formatMetric' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   23:52  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+   25:38  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+   26:35  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  130:17  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+D:\Water_Irigation\frontend\src\pages\RainfallPage.tsx:130:17
+  128 |   ], [metrics])
+  129 |
+> 130 |   const table = useReactTable({
+      |                 ^^^^^^^^^^^^^ TanStack Table's `useReactTable()` API returns functions that cannot be memoized safely
+  131 |     data: metrics ?? [],
+  132 |     columns: metricColumns,
+  133 |     state: { sorting },  react-hooks/incompatible-library
+
+✖ 22 problems (15 errors, 7 warnings)
+
