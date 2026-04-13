@@ -15,6 +15,17 @@ start "AquaAI Backend" cmd /k "cd backend && pip install -r requirements.txt && 
 echo [2/2] Starting Frontend...
 cd frontend
 
+REM Ensure Vite env vars exist (required for X-API-Key)
+if not exist .env.local (
+    if exist .env.example (
+        echo Creating frontend\.env.local from .env.example...
+        copy .env.example .env.local >nul
+    ) else (
+        echo Error: frontend\.env.example not found; cannot create .env.local
+        exit /b 1
+    )
+)
+
 call npm install
 call npm run dev -- --open
 

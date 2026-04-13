@@ -13,10 +13,10 @@ class Settings(BaseSettings):
     NASA_LAT: float = 12.87
     NASA_LON: float = 74.88
     DEFAULT_MODEL: str = "LSTM"
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"]
     REDIS_URL: str = ""
     LOG_LEVEL: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

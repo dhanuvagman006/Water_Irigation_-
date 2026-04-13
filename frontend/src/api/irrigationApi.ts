@@ -12,10 +12,15 @@ export function useIrrigationPrediction() {
         num_plants: Object.fromEntries((input.crop_types || []).map((c) => [c, 50])),
       }
       const { data } = await api.post('/irrigation/predict', payload)
-      return data.plan.map((p: any) => ({
-        ...p,
-        soil_moisture: p.soil_moisture_forecast
-      })) as IrrigationPlan[]
+      const plan = (data.plan as Array<Record<string, unknown>> | undefined) ?? []
+      return plan.map((p) => ({
+        date: String(p.date),
+        crop: p.crop as IrrigationPlan['crop'],
+        decision: p.decision as IrrigationPlan['decision'],
+        water_liters: Number(p.water_liters),
+        reason: String(p.reason ?? ''),
+        soil_moisture: Number(p.soil_moisture_forecast ?? 0),
+      }))
     },
   })
 }

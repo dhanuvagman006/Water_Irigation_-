@@ -85,7 +85,7 @@ async def insufficient_data_handler(request: Request, exc: InsufficientDataError
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled Exception", error=str(exc))
+    logger.exception("Unhandled Exception", error=str(exc))
     return JSONResponse(status_code=500, content={"error": "An internal server error occurred.", "code": "INTERNAL_ERROR"})
 
 # Middleware order (last added = first to run)
@@ -119,7 +119,7 @@ class VerifyAPIKeyMiddleware(BaseHTTPMiddleware):
 app.add_middleware(VerifyAPIKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8000", "*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

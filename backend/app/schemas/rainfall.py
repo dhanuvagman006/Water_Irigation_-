@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from datetime import date, datetime
 from typing import Optional
 
@@ -10,8 +10,16 @@ class DayPrediction(BaseModel):
 
 class RainfallPredictRequest(BaseModel):
     model: str = "LSTM"     # model name
-    days: int = 14          # forecast horizon
+    days: int = Field(default=14, ge=1, le=30)  # forecast horizon
     start_date: Optional[date] = None
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, model: str) -> str:
+        m = model.strip()
+        if not m:
+            raise ValueError("model must not be empty")
+        return m
 
 class RainfallPredictResponse(BaseModel):
     predictions: list[DayPrediction]

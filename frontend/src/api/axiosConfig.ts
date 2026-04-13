@@ -1,6 +1,7 @@
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 
-const API_BASE_URL = 'http://localhost:8000/api'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000/api'
+const API_KEY = (import.meta.env.VITE_API_KEY as string | undefined) ?? ''
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -14,7 +15,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Add API key for the backend
-    config.headers['X-API-Key'] = 'dev_super_secret_key_123'
+    if (API_KEY) {
+      config.headers['X-API-Key'] = API_KEY
+    }
     return config
   },
   (error) => Promise.reject(error)
@@ -23,8 +26,10 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const message = error.response?.data?.detail || error.response?.data?.message || error.message || 'An error occurred'
+  (error: AxiosError) => {
+    type ErrorBody = { error?: string; detail?: string; message?: string }
+    const data = error.response?.data as ErrorBody | undefined
+    const message = data?.error || data?.detail || data?.message || error.message || 'An error occurred'
     console.error('[API Error]', message)
     return Promise.reject(new Error(message))
   }

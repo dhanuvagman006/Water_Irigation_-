@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'react-hot-toast'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import toast, { Toaster } from 'react-hot-toast'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import RainfallPage from './pages/RainfallPage'
@@ -9,6 +9,18 @@ import IrrigationPage from './pages/IrrigationPage'
 import ModelComparisonPage from './pages/ModelComparisonPage'
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      const message = (error as Error)?.message || 'Request failed'
+      toast.error(message)
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      const message = (error as Error)?.message || 'Request failed'
+      toast.error(message)
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 2,

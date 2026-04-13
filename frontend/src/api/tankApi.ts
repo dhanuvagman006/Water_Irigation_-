@@ -7,7 +7,13 @@ export function useTankPrediction() {
   return useMutation<TankPrediction[], Error, TankInput>({
     mutationFn: async (input) => {
       const { data } = await api.post('/tank/predict', input)
-      return data.predictions.map((p: any) => ({ ...p, model: input.model })) as TankPrediction[]
+      const predictions = (data.predictions as Array<Record<string, unknown>> | undefined) ?? []
+      return predictions.map((p) => ({
+        date: String(p.date),
+        level: p.level as TankPrediction['level'],
+        percentage: Number(p.percentage),
+        model: input.model,
+      }))
     },
   })
 }

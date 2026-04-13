@@ -8,7 +8,7 @@ export function useRainfallPrediction(model: ModelName, startDate?: Date, days: 
   return useQuery<RainfallPrediction[]>({
     queryKey: ['rainfall', model, startDate?.toISOString(), days],
     queryFn: async () => {
-      const payload: Record<string, string | number> = { model, days: days.toString() }
+      const payload: Record<string, string | number> = { model, days }
       if (startDate) {
         // format Date as YYYY-MM-DD
         payload.start_date = startDate.toISOString().split('T')[0]

@@ -43,8 +43,10 @@ async def predict(
             
         return response
     except HTTPException as e:
+        await db.rollback()
         raise e
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/predict/latest")

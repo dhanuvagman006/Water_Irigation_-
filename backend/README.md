@@ -32,16 +32,12 @@ alembic upgrade head
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-or via Docker:
-```bash
-docker-compose up --build
-```
 
 ---
 
 ## Example cURL Requests
 
-API expects requests to include an `X-API-Key` header mapped against the `.env` value.
+API expects requests to include an `X-API-Key` header matching `API_KEY` in `backend/.env`.
 
 ### Health Check (No Auth)
 ```bash

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect } from 'react'
 import { CloudRain, Database, Sprout, CalendarClock } from 'lucide-react'
 import {
   useReactTable,

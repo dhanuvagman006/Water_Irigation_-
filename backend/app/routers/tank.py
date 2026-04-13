@@ -36,8 +36,10 @@ async def predict(
             
         return response
     except HTTPException as e:
+        await db.rollback()
         raise e
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/simulate", response_model=TankPredictResponse)
@@ -51,6 +53,7 @@ async def simulate(
         response = await tank_service.predict(request, loader, db)
         return response
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/predict/latest")

@@ -9,6 +9,19 @@ import numpy as np
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
+
+def _dummy_from_input_shape(input_shape):
+    # Keras input_shape often includes None for batch dimension.
+    # It may be a tuple or a list (multi-input models). We warm up the first input.
+    shape = input_shape[0] if isinstance(input_shape, (list, tuple)) and input_shape and isinstance(input_shape[0], (list, tuple)) else input_shape
+    if not shape:
+        return np.zeros((1, 1), dtype=np.float32)
+
+    dims = []
+    for dim in shape:
+        dims.append(1 if dim is None else int(dim))
+    return np.zeros(tuple(dims), dtype=np.float32)
+
 @scheduler.scheduled_job('cron', hour=0, minute=30)
 async def daily_nasa_fetch():
     logger.info("Executing daily NASA fetch job")
@@ -25,19 +38,17 @@ async def daily_nasa_fetch():
 @scheduler.scheduled_job('cron', day_of_week='sun', hour=1, minute=0)
 async def weekly_model_warmup():
     logger.info("Executing weekly model warmup job")
-    # Warmup models by passing dummy data to keep them loaded computationally fast
-    dummy_rain_features = np.zeros((1, 30, 8))
-    dummy_tank_features = np.zeros((1, 5))
-    dummy_irrigation_features = np.zeros((1, 7))
-    
-    for module, name_dict in [("rainfall", dummy_rain_features), ("tank", dummy_tank_features), ("irrigation", dummy_irrigation_features)]:
+    # Warmup models by passing dummy data matching each model's input shape.
+    for module in model_loader.modules:
         for model_name in model_loader.expected_models:
             key = f"{module}/{model_name}"
-            if key in model_loader.models:
-                try:
-                    m = model_loader.models[key]
-                    m.predict(name_dict, verbose=0)
-                except Exception as e:
-                    logger.warning(f"Warmup failed for {key}: {e}")
+            m = model_loader.models.get(key)
+            if not m:
+                continue
+            try:
+                dummy = _dummy_from_input_shape(getattr(m, "input_shape", None))
+                m.predict(dummy, verbose=0)
+            except Exception as e:
+                logger.warning(f"Warmup failed for {key}: {e}")
                     
     logger.info("Weekly model warmup job completed")
