@@ -12,16 +12,10 @@ htmlcov/
 .ruff_cache/
 
 # Environment files (keep examples)
-.env
-.env.*
-!.env.example
-!.env.sample
 
+
+venv
 # Local databases
-backend/aquaai.db
-backend/*.sqlite
-backend/*.sqlite3
-
 # Node / frontend (frontend has its own .gitignore; this is a safety net)
 node_modules/
 dist/
