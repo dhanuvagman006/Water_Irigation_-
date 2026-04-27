@@ -8,6 +8,7 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import LSTM, GRU, Bidirectional, Dense, Conv1D, MaxPooling1D, Flatten, Input, MultiHeadAttention, Dropout, LayerNormalization, GlobalAveragePooling1D
 from sklearn.preprocessing import MinMaxScaler
+import pywt
 from datetime import datetime
 import asyncio
 
@@ -99,13 +100,44 @@ def build_stacked_lstm(input_shape, out_dim, classification=False):
         model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     return model
 
+def build_mlp(input_shape, out_dim, classification=False):
+    model = Sequential()
+    model.add(Flatten(input_shape=input_shape))
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(64, activation='relu'))
+    if classification:
+        model.add(Dense(out_dim, activation='softmax'))
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        model.add(Dense(out_dim))
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
+def build_wlstm(input_shape, out_dim, classification=False):
+    # For WLSTM, we expect the input to have been transformed by Wavelet
+    # But for compatibility with the generic builder, we'll handle the architecture here
+    # and the transform in the data prep or a custom layer.
+    # Here we'll build a deeper LSTM that performs well with wavelet-decomposed features.
+    model = Sequential()
+    model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.2))
+    model.add(LSTM(32))
+    model.add(Dense(16, activation='relu'))
+    if classification:
+        model.add(Dense(out_dim, activation='softmax'))
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        model.add(Dense(out_dim))
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
 BUILD_FNS = {
     "lstm": build_lstm,
     "gru": build_gru,
-    "bilstm": build_bilstm,
     "cnn_lstm": build_cnn_lstm,
-    "transformer": build_transformer,
-    "stacked_lstm": build_stacked_lstm
+    "mlp": build_mlp,
+    "wlstm": build_wlstm
 }
 
 #########################################
@@ -113,7 +145,7 @@ BUILD_FNS = {
 #########################################
 def build_rainfall_dataset(df, window_size=30, horizon=14):
     print("Preparing Rainfall Data...")
-    cols = ["precipitation_mm", "temp_max", "temp_min", "humidity", "wind_speed", "solar_radiation", "sin_day", "cos_day"]
+    cols = ["precipitation_mm", "temp_max", "temp_min", "humidity", "wind_speed", "solar_radiation", "pressure", "sin_day", "cos_day"]
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[cols])
     
@@ -124,6 +156,30 @@ def build_rainfall_dataset(df, window_size=30, horizon=14):
         y.append(scaled_data[i + window_size : i + window_size + horizon, 0])
         
     return np.array(X), np.array(y), scaler
+
+def apply_wavelet_transform(X, wavelet='db1', level=1):
+    """
+    Applies Discrete Wavelet Transform to the input features.
+    X shape: (N, window_size, features)
+    """
+    N, T, F = X.shape
+    X_wavelet = []
+    for i in range(N):
+        sample = X[i] # (T, F)
+        sample_wavelet = []
+        for f in range(F):
+            coeffs = pywt.wavedec(sample[:, f], wavelet, level=level)
+            # Use approximation coefficients (cA) and detail coefficients (cD)
+            # For simplicity, we just concatenate them or use cA.
+            # Here we'll use cA to capture the main trend.
+            cA = coeffs[0]
+            # Rescale cA to match original T if necessary, or just use it.
+            # If we use Haar (db1) and level 1, cA length is T/2.
+            # To keep dimensions consistent for LSTM, we can interpolate.
+            cA_up = np.repeat(cA, 2)[:T]
+            sample_wavelet.append(cA_up)
+        X_wavelet.append(np.column_stack(sample_wavelet))
+    return np.array(X_wavelet)
 
 def build_tank_dataset(df, window_size=30):
     print("Preparing Tank Data...")
@@ -197,21 +253,34 @@ def build_irrigation_dataset(df, window_size=30):
 # MAIN TRAINER
 #########################################
 async def run_training(dataset_path: str):
-    print("Starting Training Pipeline...")
+    print(f"Starting Training Pipeline with dataset: {dataset_path}")
     
     # 1. Load Data
     raw_df = pd.read_csv(dataset_path)
     
-    # 2. Synthesize missing features
-    print("Synthesizing missing features to match backend dimensions...")
-    raw_df["precipitation_mm"] = raw_df["Rainfall(mm)"]
-    raw_df["temp_max"] = raw_df["Temperature(C)"] + np.random.uniform(2, 5, len(raw_df))
-    raw_df["temp_min"] = raw_df["Temperature(C)"] - np.random.uniform(2, 5, len(raw_df))
-    raw_df["humidity"] = raw_df["Humidity(%)"]
-    raw_df["wind_speed"] = np.random.lognormal(mean=1.5, sigma=0.5, size=len(raw_df))
-    raw_df["solar_radiation"] = np.random.uniform(10, 25, len(raw_df))
+    # 2. Map NASA columns if present, otherwise fallback to old format
+    if "PRECTOTCORR" in raw_df.columns:
+        print("Detected NASA_WEATHER_FINAL format. Mapping columns...")
+        raw_df["precipitation_mm"] = raw_df["PRECTOTCORR"]
+        raw_df["temp_max"] = raw_df["T2M"] + 2.0 # Approximation
+        raw_df["temp_min"] = raw_df["T2M"] - 2.0 # Approximation
+        raw_df["humidity"] = raw_df["RH2M"]
+        raw_df["wind_speed"] = raw_df["WS2M"]
+        raw_df["solar_radiation"] = raw_df["ALLSKY_SFC_SW_DWN"]
+        raw_df["pressure"] = raw_df["PS"]
+        raw_df.rename(columns={"Date": "date"}, inplace=True)
+    else:
+        print("Detected legacy format. Synthesizing missing features...")
+        raw_df["precipitation_mm"] = raw_df["Rainfall(mm)"]
+        raw_df["temp_max"] = raw_df["Temperature(C)"] + np.random.uniform(2, 5, len(raw_df))
+        raw_df["temp_min"] = raw_df["Temperature(C)"] - np.random.uniform(2, 5, len(raw_df))
+        raw_df["humidity"] = raw_df["Humidity(%)"]
+        raw_df["wind_speed"] = np.random.lognormal(mean=1.5, sigma=0.5, size=len(raw_df))
+        raw_df["solar_radiation"] = np.random.uniform(10, 25, len(raw_df))
+        raw_df["pressure"] = 101.325 # Standard pressure
+        raw_df.rename(columns={"Date": "date"}, inplace=True)
     
-    raw_df = preprocessor.add_time_features(raw_df.rename(columns={"Date": "date"}))
+    raw_df = preprocessor.add_time_features(raw_df)
     
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     models_dir = os.path.join(base_dir, "models")
@@ -223,22 +292,43 @@ async def run_training(dataset_path: str):
     # -------- RAINFALL --------
     X_rain, y_rain, scaler_rain = build_rainfall_dataset(raw_df)
     joblib.dump(scaler_rain, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
+    
     for name, f_model in BUILD_FNS.items():
         print(f"Training Rainfall - {name}")
-        model = f_model(X_rain.shape[1:], 14, classification=False)
-        history = model.fit(X_rain[-3000:], y_rain[-3000:], epochs=3, batch_size=32, validation_split=0.1, verbose=1)
+        
+        # Apply Wavelet Transform if model is WLSTM
+        X_train_final = X_rain
+        if name == "wlstm":
+            print("Applying Wavelet Transform for WLSTM...")
+            X_train_final = apply_wavelet_transform(X_rain)
+            
+        model = f_model(X_train_final.shape[1:], 14, classification=False)
+        
+        # Increase epochs and use more data for >90% accuracy goal
+        # Use full dataset instead of just last 3000
+        history = model.fit(
+            X_train_final, y_rain, 
+            epochs=20, # Increased epochs
+            batch_size=64, 
+            validation_split=0.2, 
+            verbose=1,
+            callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+        )
+        
         model.save(os.path.join(models_dir, "rainfall", f"{name}.keras"))
         val_loss = history.history["val_loss"][-1]
         val_mae = history.history["val_mae"][-1]
         
         # Calculate R2 and NSE on validation set
-        val_size = int(0.1 * 3000)
-        X_val_rain = X_rain[-val_size:]
-        y_val_rain = y_rain[-val_size:]
-        y_pred_rain = model.predict(X_val_rain, verbose=0)
-        r2 = r2_score(y_val_rain.flatten(), y_pred_rain.flatten())
-        # For simplicity, calculate NSE similarly (which is usually analogous to R2)
-        nse = r2_score(y_val_rain.flatten(), y_pred_rain.flatten())
+        val_size = int(0.2 * len(X_train_final))
+        X_val = X_train_final[-val_size:]
+        y_val = y_rain[-val_size:]
+        y_pred = model.predict(X_val, verbose=0)
+        
+        r2 = r2_score(y_val.flatten(), y_pred.flatten())
+        nse = r2 # Nash-Sutcliffe Efficiency is equivalent to R2 for regression
+        
+        print(f"Rainfall {name} - R2 Score: {r2:.4f}")
         
         db_metrics.append({
             "module": "rainfall", "model_name": name, 
@@ -251,13 +341,18 @@ async def run_training(dataset_path: str):
     joblib.dump(scaler_tank, os.path.join(scalers_dir, "tank_scaler.pkl"))
     for name, f_model in BUILD_FNS.items():
         print(f"Training Tank - {name}")
-        model = f_model(X_tank.shape[1:], 3, classification=True)
-        history = model.fit(X_tank[-3000:], y_tank[-3000:], epochs=3, batch_size=32, validation_split=0.1, verbose=1)
+        
+        X_train_final = X_tank
+        if name == "wlstm":
+            X_train_final = apply_wavelet_transform(X_tank)
+            
+        model = f_model(X_train_final.shape[1:], 3, classification=True)
+        history = model.fit(X_train_final, y_tank, epochs=10, batch_size=64, validation_split=0.2, verbose=1)
         model.save(os.path.join(models_dir, "tank", f"{name}.keras"))
         val_acc = history.history["val_accuracy"][-1]
         
-        val_size = int(0.1 * 3000)
-        X_val = X_tank[-val_size:]
+        val_size = int(0.2 * len(X_train_final))
+        X_val = X_train_final[-val_size:]
         y_val = y_tank[-val_size:]
         y_pred_probs = model.predict(X_val, verbose=0)
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
@@ -273,13 +368,18 @@ async def run_training(dataset_path: str):
     joblib.dump(scaler_irr, os.path.join(scalers_dir, "irrigation_scaler.pkl"))
     for name, f_model in BUILD_FNS.items():
         print(f"Training Irrigation - {name}")
-        model = f_model(X_irr.shape[1:], 3, classification=True)
-        history = model.fit(X_irr[-3000:], y_irr[-3000:], epochs=3, batch_size=32, validation_split=0.1, verbose=1)
+        
+        X_train_final = X_irr
+        if name == "wlstm":
+            X_train_final = apply_wavelet_transform(X_irr)
+            
+        model = f_model(X_train_final.shape[1:], 3, classification=True)
+        history = model.fit(X_train_final, y_irr, epochs=10, batch_size=64, validation_split=0.2, verbose=1)
         model.save(os.path.join(models_dir, "irrigation", f"{name}.keras"))
         val_acc = history.history["val_accuracy"][-1]
         
-        val_size = int(0.1 * 3000)
-        X_val = X_irr[-val_size:]
+        val_size = int(0.2 * len(X_train_final))
+        X_val = X_train_final[-val_size:]
         y_val = y_irr[-val_size:]
         y_pred_probs = model.predict(X_val, verbose=0)
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
@@ -304,7 +404,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         dataset_path = sys.argv[1]
     else:
-        # Look for CSV in project root (3 levels up from this file)
+        # Look for NASA CSV in project root (3 levels up from this file)
         script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        dataset_path = os.path.join(script_dir, "Dakshina_Kannada_NASA_POWER_1981_2024.csv")
+        dataset_path = os.path.join(script_dir, "NASA_WEATHER_FINAL.csv")
+        if not os.path.exists(dataset_path):
+            # Fallback to Dakshina Kannada CSV
+            dataset_path = os.path.join(script_dir, "Dakshina_Kannada_NASA_POWER_1981_2024.csv")
     asyncio.run(run_training(dataset_path))

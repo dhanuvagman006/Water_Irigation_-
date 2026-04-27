@@ -5,8 +5,10 @@ class Preprocessor:
     def add_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         if "date" in df.columns:
-            # Convert date to datetime if necessary
-            df["datetime"] = pd.to_datetime(df["date"])
+            # Convert date to datetime, handle new NASA format DD-MM-YYYY
+            df["datetime"] = pd.to_datetime(df["date"], dayfirst=True, errors='coerce')
+            # Drop rows with invalid dates if any
+            df = df.dropna(subset=["datetime"])
             day_of_year = df["datetime"].dt.dayofyear
             df["sin_day"] = np.sin(2 * np.pi * day_of_year / 365.25)
             df["cos_day"] = np.cos(2 * np.pi * day_of_year / 365.25)
