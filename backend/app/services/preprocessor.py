@@ -38,7 +38,7 @@ class Preprocessor:
         cols = [
             "precipitation_mm", "temp_max", "temp_min",
             "humidity", "wind_speed", "solar_radiation",
-            "sin_day", "cos_day"
+            "pressure", "sin_day", "cos_day"
         ]
         return df[cols].values
 

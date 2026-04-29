@@ -322,18 +322,26 @@ async def run_training(dataset_path: str):
         # Calculate R2 and NSE on validation set
         val_size = int(0.2 * len(X_train_final))
         X_val = X_train_final[-val_size:]
-        y_val = y_rain[-val_size:]
-        y_pred = model.predict(X_val, verbose=0)
+        y_val = y_rain[-val_size:].flatten()
+        y_pred = model.predict(X_val, verbose=0).flatten()
         
-        r2 = r2_score(y_val.flatten(), y_pred.flatten())
+        r2 = r2_score(y_val, y_pred)
         nse = r2 # Nash-Sutcliffe Efficiency is equivalent to R2 for regression
         
-        print(f"Rainfall {name} - R2 Score: {r2:.4f}")
+        # Calculate a "Regression Accuracy" (within 2mm tolerance)
+        accuracy = np.mean(np.abs(y_val - y_pred) < 2.0)
+        # For F1 in regression, we can treat it as a binary classification (Rain vs No Rain)
+        y_val_bin = (y_val > 0.5).astype(int)
+        y_pred_bin = (y_pred > 0.5).astype(int)
+        f1 = f1_score(y_val_bin, y_pred_bin, average='weighted')
+
+        print(f"Rainfall {name} - R2 Score: {r2:.4f}, Accuracy (±2mm): {accuracy:.4f}")
         
         db_metrics.append({
             "module": "rainfall", "model_name": name, 
             "rmse": float(np.sqrt(val_loss)), "mae": float(val_mae),
-            "r2": float(r2), "nse": float(nse)
+            "r2": float(r2), "nse": float(nse),
+            "accuracy": float(accuracy), "f1": float(f1)
         })
 
     # -------- TANK --------
@@ -358,9 +366,16 @@ async def run_training(dataset_path: str):
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
         
+        # Calculate Pseudo-Regression metrics for Classification
+        rmse = np.sqrt(np.mean((y_val - y_pred_classes)**2))
+        mae = np.mean(np.abs(y_val - y_classes)) if 'y_classes' in locals() else np.mean(np.abs(y_val - y_pred_classes))
+        r2 = r2_score(y_val, y_pred_classes)
+
         db_metrics.append({
             "module": "tank", "model_name": name, 
-            "accuracy": float(val_acc), "f1": float(f1)
+            "accuracy": float(val_acc), "f1": float(f1),
+            "rmse": float(rmse), "mae": float(mae),
+            "r2": float(r2), "nse": float(r2)
         })
 
     # -------- IRRIGATION --------
@@ -385,9 +400,16 @@ async def run_training(dataset_path: str):
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
         
+        # Calculate Pseudo-Regression metrics for Classification
+        rmse = np.sqrt(np.mean((y_val - y_pred_classes)**2))
+        mae = np.mean(np.abs(y_val - y_pred_classes))
+        r2 = r2_score(y_val, y_pred_classes)
+
         db_metrics.append({
             "module": "irrigation", "model_name": name, 
-            "accuracy": float(val_acc), "f1": float(f1)
+            "accuracy": float(val_acc), "f1": float(f1),
+            "rmse": float(rmse), "mae": float(mae),
+            "r2": float(r2), "nse": float(r2)
         })
 
     # 4. Save metrics to DB

@@ -57,4 +57,5 @@ class NASADataRecord(Base):
     humidity = Column(Float)
     wind_speed = Column(Float)
     solar_radiation = Column(Float)
+    pressure = Column(Float)
     fetched_at = Column(DateTime, default=datetime.datetime.utcnow)

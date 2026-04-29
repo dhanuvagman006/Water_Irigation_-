@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 NASA_POWER_URL = (
     "https://power.larc.nasa.gov/api/temporal/daily/point"
     "?parameters=PRECTOTCORR,T2M_MAX,T2M_MIN,RH2M,WS2M,"
-    "ALLSKY_SFC_SW_DWN"
+    "ALLSKY_SFC_SW_DWN,PS"
     "&community=RE"
     "&longitude={lon}&latitude={lat}"
     "&start={start}&end={end}"
@@ -65,6 +65,7 @@ class NASAService:
                 record.humidity = get_val("RH2M")
                 record.wind_speed = get_val("WS2M")
                 record.solar_radiation = get_val("ALLSKY_SFC_SW_DWN")
+                record.pressure = get_val("PS")
                 record.fetched_at = datetime.utcnow()
                 
                 records_upserted += 1
@@ -94,7 +95,8 @@ class NASAService:
             "temp_min": r.temp_min,
             "humidity": r.humidity,
             "wind_speed": r.wind_speed,
-            "solar_radiation": r.solar_radiation
+            "solar_radiation": r.solar_radiation,
+            "pressure": r.pressure
         } for r in records]
         
         df = pd.DataFrame(data)
