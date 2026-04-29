@@ -24,7 +24,8 @@ async def list_models(loader: ModelLoader = Depends(get_model_loader)):
 async def get_module_metrics(module: str, db: AsyncSession = Depends(get_db)):
     if module not in ["rainfall", "tank", "irrigation"]:
         raise HTTPException(status_code=400, detail="Invalid module")
-    stmt = select(ModelMetricsRecord).where(ModelMetricsRecord.module == module)
+    # Order by ID to ensure latest is last (for frontend Map logic)
+    stmt = select(ModelMetricsRecord).where(ModelMetricsRecord.module == module).order_by(ModelMetricsRecord.id.asc())
     result = await db.execute(stmt)
     return result.scalars().all()
 
