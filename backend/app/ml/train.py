@@ -1,4 +1,4 @@
-from sklearn.metrics import r2_score, f1_score
+from sklearn.metrics import r2_score, f1_score, accuracy_score
 import os
 import sys
 import numpy as np
@@ -18,8 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from app.database.base import AsyncSessionLocal
 from app.database.models import ModelMetricsRecord
 from app.services.preprocessor import preprocessor
-from sqlalchemy import select
-epochs=10
 
 #########################################
 # MODEL ARCHITECTURES
@@ -289,26 +287,11 @@ async def run_training(dataset_path: str):
     scalers_dir = os.path.join(base_dir, "scalers")
     os.makedirs(scalers_dir, exist_ok=True)
     
-    # Helper to save metrics incrementally
-    async def save_module_metrics(metrics_list):
-        print(f"Saving metrics for module to DB...")
-        async with AsyncSessionLocal() as session:
-            for m in metrics_list:
-                stmt = select(ModelMetricsRecord).where(
-                    ModelMetricsRecord.module == m["module"],
-                    ModelMetricsRecord.model_name == m["model_name"]
-                )
-                result = await session.execute(stmt)
-                for old_r in result.scalars().all():
-                    await session.delete(old_r)
-                session.add(ModelMetricsRecord(**m))
-            await session.commit()
-
+    db_metrics = []
+    
     # -------- RAINFALL --------
     X_rain, y_rain, scaler_rain = build_rainfall_dataset(raw_df)
     joblib.dump(scaler_rain, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
-    
-    rain_metrics = []
     
     for name, f_model in BUILD_FNS.items():
         print(f"Training Rainfall - {name}")
@@ -325,7 +308,7 @@ async def run_training(dataset_path: str):
         # Use full dataset instead of just last 3000
         history = model.fit(
             X_train_final, y_rain, 
-            epochs=epochs, # Increased epochs
+            epochs=20, # Increased epochs
             batch_size=64, 
             validation_split=0.2, 
             verbose=1,
@@ -339,41 +322,34 @@ async def run_training(dataset_path: str):
         # Calculate R2 and NSE on validation set
         val_size = int(0.2 * len(X_train_final))
         X_val = X_train_final[-val_size:]
-        y_val = y_rain[-val_size:].flatten()
-        y_pred = model.predict(X_val, verbose=0).flatten()
-
-        r2 = r2_score(y_val, y_pred)
+        y_val = y_rain[-val_size:]
+        y_pred = model.predict(X_val, verbose=0)
+        
+        r2 = r2_score(y_val.flatten(), y_pred.flatten())
         nse = r2 # Nash-Sutcliffe Efficiency is equivalent to R2 for regression
-
-        # Unscale values for realistic accuracy calculation
-        # precipitation_mm is the first column (index 0) in the scaler
-        y_range = scaler_rain.data_range_[0]
-        y_min = scaler_rain.data_min_[0]
-        y_val_unscaled = y_val * y_range + y_min
-        y_pred_unscaled = y_pred * y_range + y_min
         
-        # Calculate a "Regression Accuracy" (within 1.0mm tolerance)
-        accuracy = np.mean(np.abs(y_val_unscaled - y_pred_unscaled) < 1.0)
+        # Calculate Accuracy and F1 Score for Rainfall based on threshold (>0.01 threshold for rain)
+        y_val_class = (y_val.flatten() > 0.01).astype(int)
+        y_pred_class = (y_pred.flatten() > 0.01).astype(int)
+        try:
+            acc = accuracy_score(y_val_class, y_pred_class)
+            f1 = f1_score(y_val_class, y_pred_class, average='weighted', zero_division=0)
+        except Exception:
+            acc = 0.0
+            f1 = 0.0
         
-        # For F1 in regression, treat it as binary (Is it raining? > 0.1mm)
-        y_val_bin = (y_val_unscaled > 0.1).astype(int)
-        y_pred_bin = (y_pred_unscaled > 0.1).astype(int)
-        f1 = f1_score(y_val_bin, y_pred_bin, average='weighted', zero_division=0)
-
-        print(f"Rainfall {name} - R2: {r2:.4f}, Acc (±1mm): {accuracy:.2%}, F1: {f1:.2%}")
+        print(f"Rainfall {name} - R2 Score: {r2:.4f}, Accuracy: {acc:.4f}, F1: {f1:.4f}")
         
-        rain_metrics.append({
+        db_metrics.append({
             "module": "rainfall", "model_name": name, 
             "rmse": float(np.sqrt(val_loss)), "mae": float(val_mae),
-            "r2": float(r2), "nse": float(r2),
-            "accuracy": float(accuracy), "f1": float(f1)
+            "r2": float(r2), "nse": float(nse),
+            "accuracy": float(acc), "f1": float(f1)
         })
-    await save_module_metrics(rain_metrics)
 
     # -------- TANK --------
     X_tank, y_tank, scaler_tank = build_tank_dataset(raw_df)
     joblib.dump(scaler_tank, os.path.join(scalers_dir, "tank_scaler.pkl"))
-    tank_metrics = []
     for name, f_model in BUILD_FNS.items():
         print(f"Training Tank - {name}")
         
@@ -382,7 +358,7 @@ async def run_training(dataset_path: str):
             X_train_final = apply_wavelet_transform(X_tank)
             
         model = f_model(X_train_final.shape[1:], 3, classification=True)
-        history = model.fit(X_train_final, y_tank, epochs=epochs, batch_size=64, validation_split=0.2, verbose=1)
+        history = model.fit(X_train_final, y_tank, epochs=10, batch_size=64, validation_split=0.2, verbose=1)
         model.save(os.path.join(models_dir, "tank", f"{name}.keras"))
         val_acc = history.history["val_accuracy"][-1]
         
@@ -393,23 +369,14 @@ async def run_training(dataset_path: str):
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
         
-        # Calculate Pseudo-Regression metrics for Classification
-        rmse = np.sqrt(np.mean((y_val - y_pred_classes)**2))
-        mae = np.mean(np.abs(y_val - y_pred_classes))
-        r2 = r2_score(y_val, y_pred_classes)
-
-        tank_metrics.append({
+        db_metrics.append({
             "module": "tank", "model_name": name, 
-            "accuracy": float(val_acc), "f1": float(f1),
-            "rmse": float(rmse), "mae": float(mae),
-            "r2": float(r2), "nse": float(r2)
+            "accuracy": float(val_acc), "f1": float(f1)
         })
-    await save_module_metrics(tank_metrics)
 
     # -------- IRRIGATION --------
     X_irr, y_irr, scaler_irr = build_irrigation_dataset(raw_df)
     joblib.dump(scaler_irr, os.path.join(scalers_dir, "irrigation_scaler.pkl"))
-    irr_metrics = []
     for name, f_model in BUILD_FNS.items():
         print(f"Training Irrigation - {name}")
         
@@ -418,7 +385,7 @@ async def run_training(dataset_path: str):
             X_train_final = apply_wavelet_transform(X_irr)
             
         model = f_model(X_train_final.shape[1:], 3, classification=True)
-        history = model.fit(X_train_final, y_irr, epochs=epochs, batch_size=64, validation_split=0.2, verbose=1)
+        history = model.fit(X_train_final, y_irr, epochs=10, batch_size=64, validation_split=0.2, verbose=1)
         model.save(os.path.join(models_dir, "irrigation", f"{name}.keras"))
         val_acc = history.history["val_accuracy"][-1]
         
@@ -429,20 +396,19 @@ async def run_training(dataset_path: str):
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
         
-        # Calculate Pseudo-Regression metrics for Classification
-        rmse = np.sqrt(np.mean((y_val - y_pred_classes)**2))
-        mae = np.mean(np.abs(y_val - y_pred_classes))
-        r2 = r2_score(y_val, y_pred_classes)
-
-        irr_metrics.append({
+        db_metrics.append({
             "module": "irrigation", "model_name": name, 
-            "accuracy": float(val_acc), "f1": float(f1),
-            "rmse": float(rmse), "mae": float(mae),
-            "r2": float(r2), "nse": float(r2)
+            "accuracy": float(val_acc), "f1": float(f1)
         })
-    await save_module_metrics(irr_metrics)
 
-    print("Training Complete! Dashboard updated with latest Accuracy and F1 scores.")
+    # 4. Save metrics to DB
+    print("Saving metrics to DB...")
+    async with AsyncSessionLocal() as session:
+        for m in db_metrics:
+            session.add(ModelMetricsRecord(**m))
+        await session.commit()
+        
+    print("Training Complete! Models and Scalers saved.")
 
 if __name__ == "__main__":
     import sys

@@ -57,15 +57,6 @@ class RainfallService:
         for i in range(actual_days):
             val = float(predicted_mm[i])
             day_date = start_date + timedelta(days=i)
-            
-            # SEASONAL SANITY CHECK (Summer Clipping)
-            # In Dakshina Kannada / South India, March-May are dry months.
-            # If the model predicts heavy rain (>15mm) during these months, we clip it 
-            # to prevent unrealistic "hallucinations" while the model is still training.
-            if day_date.month in [3, 4, 5]:
-                if val > 15.0:
-                    val = np.random.uniform(0.0, 5.0) # Light pre-monsoon showers at most
-            
             predictions.append(DayPrediction(
                 date=day_date,
                 predicted_mm=val,
