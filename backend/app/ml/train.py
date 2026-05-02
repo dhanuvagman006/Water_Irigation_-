@@ -1,6 +1,16 @@
-from sklearn.metrics import r2_score
 import os
 import sys
+import multiprocessing
+
+# CRITICAL: Configure TensorFlow to use ALL CPU cores BEFORE importing TF
+NUM_CPUS = multiprocessing.cpu_count()
+os.environ["TF_NUM_INTEROP_THREADS"] = str(NUM_CPUS)
+os.environ["TF_NUM_INTRA_OP_THREADS"] = str(NUM_CPUS)
+os.environ["OMP_NUM_THREADS"] = str(NUM_CPUS)
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+from sklearn.metrics import r2_score, f1_score
 import numpy as np
 import pandas as pd
 import joblib
@@ -12,9 +22,15 @@ import pywt
 from datetime import datetime
 import asyncio
 
+# Force TF to use all cores
+tf.config.threading.set_inter_op_parallelism_threads(NUM_CPUS)
+tf.config.threading.set_intra_op_parallelism_threads(NUM_CPUS)
+
 SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
+
+print(f"[Resource] Using {NUM_CPUS} CPU cores for training")
 
 # Setup path so we can import backend app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -310,6 +326,17 @@ async def run_training(dataset_path: str):
         X_val = X_scaled[train_size:]
         y_val = y_scaled[train_size:]
 
+        # Optimized tf.data pipelines with prefetch for max throughput
+        AUTOTUNE = tf.data.AUTOTUNE
+
+        def make_dataset(X, y, batch_size=32, shuffle=False):
+            ds = tf.data.Dataset.from_tensor_slices((X, y))
+            if shuffle:
+                ds = ds.shuffle(buffer_size=len(y), seed=SEED)
+            ds = ds.batch(batch_size, drop_remainder=False)
+            ds = ds.prefetch(AUTOTUNE)
+            return ds
+
         joblib.dump(scaler, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
 
         model_results = {}
@@ -323,13 +350,15 @@ async def run_training(dataset_path: str):
             print(f"Training Rainfall - {name}")
             print(f"{'='*50}")
 
-            X_train_final = X_train
-            X_val_final = X_val
+            model = f_model(X_train.shape[1:], horizon, classification=False)
 
-            model = f_model(X_train_final.shape[1:], horizon, classification=False)
-
+            # Optimize batch size for CPU (larger batches = faster on CPU)
+            batch_size = 64
             epochs = 100
-            batch_size = 32
+
+            train_ds = make_dataset(X_train, y_train, batch_size=batch_size, shuffle=True)
+            val_ds = make_dataset(X_val, y_val, batch_size=batch_size)
+
             callbacks = [
                 tf.keras.callbacks.EarlyStopping(
                     monitor='val_loss',
@@ -341,26 +370,27 @@ async def run_training(dataset_path: str):
                     factor=0.5,
                     patience=5,
                     min_lr=1e-5,
-                    verbose=1
+                    verbose=0
                 ),
             ]
 
             history = model.fit(
-                X_train_final, y_train_final,
+                train_ds,
+                validation_data=val_ds,
                 epochs=epochs,
-                batch_size=batch_size,
-                validation_data=(X_val_final, y_val_final),
                 verbose=1,
-                shuffle=False,
-                callbacks=callbacks
+                callbacks=callbacks,
+                workers=NUM_CPUS,
+                use_multiprocessing=True,
+                max_queue_size=10
             )
 
             model_dir = os.path.join(models_dir, "rainfall")
             os.makedirs(model_dir, exist_ok=True)
             model.save(os.path.join(model_dir, f"{name}.keras"))
 
-            y_pred = model.predict(X_val_final, verbose=0)
-            y_val_flat = y_val_final.flatten()
+            y_pred = model.predict(X_val, verbose=0)
+            y_val_flat = y_val.flatten()
             y_pred_flat = y_pred.flatten()
 
             dummy_pred = np.zeros((len(y_pred_flat), n_features))
@@ -432,13 +462,28 @@ async def run_training(dataset_path: str):
             X_train_final = apply_wavelet_transform(X_tank)
 
         model = f_model(X_train_final.shape[1:], 3, classification=True)
-        history = model.fit(X_train_final, y_tank, epochs=50, batch_size=32, validation_split=0.2, verbose=1)
-        model.save(os.path.join(models_dir, "tank", f"{name}.keras"))
-        val_acc = history.history["val_accuracy"][-1]
 
         val_size = int(0.2 * len(X_train_final))
         X_val = X_train_final[-val_size:]
         y_val = y_tank[-val_size:]
+        X_tr = X_train_final[:-val_size]
+        y_tr = y_tank[:-val_size]
+
+        train_ds = make_dataset(X_tr, y_tr, batch_size=64, shuffle=True)
+        val_ds = make_dataset(X_val, y_val, batch_size=64)
+
+        history = model.fit(
+            train_ds,
+            validation_data=val_ds,
+            epochs=50,
+            verbose=1,
+            callbacks=[
+                tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+            ]
+        )
+        model.save(os.path.join(models_dir, "tank", f"{name}.keras"))
+        val_acc = history.history["val_accuracy"][-1]
+
         y_pred_probs = model.predict(X_val, verbose=0)
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
@@ -459,13 +504,28 @@ async def run_training(dataset_path: str):
             X_train_final = apply_wavelet_transform(X_irr)
 
         model = f_model(X_train_final.shape[1:], 3, classification=True)
-        history = model.fit(X_train_final, y_irr, epochs=50, batch_size=32, validation_split=0.2, verbose=1)
-        model.save(os.path.join(models_dir, "irrigation", f"{name}.keras"))
-        val_acc = history.history["val_accuracy"][-1]
 
         val_size = int(0.2 * len(X_train_final))
         X_val = X_train_final[-val_size:]
         y_val = y_irr[-val_size:]
+        X_tr = X_train_final[:-val_size]
+        y_tr = y_irr[:-val_size]
+
+        train_ds = make_dataset(X_tr, y_tr, batch_size=64, shuffle=True)
+        val_ds = make_dataset(X_val, y_val, batch_size=64)
+
+        history = model.fit(
+            train_ds,
+            validation_data=val_ds,
+            epochs=50,
+            verbose=1,
+            callbacks=[
+                tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+            ]
+        )
+        model.save(os.path.join(models_dir, "irrigation", f"{name}.keras"))
+        val_acc = history.history["val_accuracy"][-1]
+
         y_pred_probs = model.predict(X_val, verbose=0)
         y_pred_classes = np.argmax(y_pred_probs, axis=1)
         f1 = f1_score(y_val, y_pred_classes, average='weighted')
