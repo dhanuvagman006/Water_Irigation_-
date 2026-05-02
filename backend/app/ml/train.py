@@ -112,13 +112,47 @@ def build_simplernn(input_shape, out_dim, classification=False):
     return model
 
 def build_lstm_attention(input_shape, out_dim, classification=False):
-    # Attention mechanism + low dropout → strongest model
     inputs = Input(shape=input_shape)
     x = LSTM(64, return_sequences=True)(inputs)
     x = Dropout(0.1)(x)
     att = Attention()([x, x])
     x = GlobalAveragePooling1D()(att)
     x = Dense(64, activation='relu')(x)
+    if classification:
+        outputs = Dense(out_dim, activation='softmax')(x)
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        outputs = Dense(out_dim)(x)
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
+def build_wlstm(input_shape, out_dim, classification=False):
+    # Wavelet-preprocessed LSTM: deeper stack for frequency-domain features
+    model = Sequential()
+    model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.15))
+    model.add(LSTM(32))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dropout(0.15))
+    if classification:
+        model.add(Dense(out_dim, activation='softmax'))
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        model.add(Dense(out_dim))
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
+def build_transformer(input_shape, out_dim, classification=False):
+    # Lightweight Transformer encoder for sequence modeling
+    inputs = Input(shape=input_shape)
+    x = MultiHeadAttention(num_heads=2, key_dim=16)(inputs, inputs)
+    x = Dropout(0.2)(x)
+    x = LayerNormalization(epsilon=1e-6)(x + inputs)
+    x = GlobalAveragePooling1D()(x)
+    x = Dense(32, activation='relu')(x)
+    x = Dropout(0.2)(x)
     if classification:
         outputs = Dense(out_dim, activation='softmax')(x)
         model = Model(inputs=inputs, outputs=outputs)
@@ -136,6 +170,8 @@ BUILD_FNS = {
     "bilstm": build_bilstm,
     "simplernn": build_simplernn,
     "lstm_attention": build_lstm_attention,
+    "wlstm": build_wlstm,
+    "transformer": build_transformer,
 }
 
 PREFERRED_MODELS = [
@@ -145,6 +181,8 @@ PREFERRED_MODELS = [
     "cnn_lstm",
     "simplernn",
     "lstm_attention",
+    "wlstm",
+    "transformer",
 ]
 
 def build_rainfall_dataset(df, window_size=30, horizon=14):
@@ -349,15 +387,23 @@ async def run_training(dataset_path: str):
             print(f"\n{'='*50}")
             print(f"Training Rainfall - {name}")
             print(f"{'='*50}")
+            print(f"Training Rainfall - {name}")
+            print(f"{'='*50}")
 
-            model = f_model(X_train.shape[1:], horizon, classification=False)
+            X_train_final = X_train
+            X_val_final = X_val
+            if name == "wlstm":
+                X_train_final = apply_wavelet_transform(X_train)
+                X_val_final = apply_wavelet_transform(X_val)
+
+            model = f_model(X_train_final.shape[1:], horizon, classification=False)
 
             # Optimize batch size for CPU (larger batches = faster on CPU)
             batch_size = 64
             epochs = 100
 
-            train_ds = make_dataset(X_train, y_train, batch_size=batch_size, shuffle=True)
-            val_ds = make_dataset(X_val, y_val, batch_size=batch_size)
+            train_ds = make_dataset(X_train_final, y_train, batch_size=batch_size, shuffle=True)
+            val_ds = make_dataset(X_val_final, y_val, batch_size=batch_size)
 
             callbacks = [
                 tf.keras.callbacks.EarlyStopping(
