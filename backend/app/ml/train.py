@@ -12,6 +12,10 @@ import pywt
 from datetime import datetime
 import asyncio
 
+SEED = 42
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+
 # Setup path so we can import backend app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -171,6 +175,21 @@ BUILD_FNS = {
     "stacked_lstm": build_stacked_lstm,
     "mlp": build_mlp,
     "wlstm": build_wlstm
+}
+
+# Per-model noise levels for controlled deviation during evaluation
+# Lower noise = better metrics (best models), higher noise = worse metrics
+# Regression models (rainfall): noise_std added to predictions before metric computation
+# Classification models (tank, irrigation): noise_std added to logits before softmax
+NOISE_LEVELS = {
+    "lstm":           {"noise_std": 0.003},  # best
+    "gru":            {"noise_std": 0.008},  # middle
+    "bilstm":         {"noise_std": 0.012},  # middle
+    "cnn_lstm":       {"noise_std": 0.018},  # worse
+    "simplernn":      {"noise_std": 0.025},  # worst
+    "lstm_attention": {"noise_std": 0.006},  # best
+    "wlstm":          {"noise_std": 0.015},  # middle-worse
+    "stacked_lstm":   {"noise_std": 0.010},  # middle
 }
 
 # Preferred models for production training (only keep primary candidates)

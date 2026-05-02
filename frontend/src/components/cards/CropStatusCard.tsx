@@ -17,6 +17,7 @@ const cropEmoji: Record<CropType, string> = {
 
 export default function CropStatusCard({ crop, decision, waterLiters }: CropStatusCardProps) {
   const borderColor = DECISION_COLORS[decision]
+  const displayLiters = waterLiters > 0 ? waterLiters.toFixed(0) : '0'
 
   return (
     <motion.div
@@ -42,7 +43,7 @@ export default function CropStatusCard({ crop, decision, waterLiters }: CropStat
       </div>
       <div className="flex items-center gap-2 text-text-muted dark:text-text-dark-muted">
         <Droplets className="w-4 h-4" />
-        <span className="text-sm font-mono">{waterLiters}L today</span>
+        <span className="text-sm font-mono">{displayLiters}L today</span>
       </div>
     </motion.div>
   )

@@ -81,3 +81,47 @@ async def test_all_crops_returns_3_plans(client: AsyncClient, mocker):
     data = response.json()
     # In actual it would be 14*3=42, but we mocked 3 dayplans total
     assert len(data["plan"]) == 3
+
+@pytest.mark.asyncio
+async def test_soil_moisture_changes_water_liters(mock_db_session, mock_loader, mocker):
+    from datetime import date, datetime, timedelta
+    from app.schemas.irrigation import IrrigationPredictRequest
+    from app.schemas.rainfall import DayPrediction, RainfallPredictResponse
+    from app.services.irrigation_service import irrigation_service
+    from app.services.rainfall_service import rainfall_service
+
+    rainfall = RainfallPredictResponse(
+        predictions=[
+            DayPrediction(
+                date=date.today() + timedelta(days=i + 1),
+                predicted_mm=1.0,
+                confidence_low=0.8,
+                confidence_high=1.2,
+            )
+            for i in range(14)
+        ],
+        model_used="LSTM",
+        generated_at=datetime.utcnow(),
+    )
+    mocker.patch.object(rainfall_service, "predict", return_value=rainfall)
+
+    dry_request = IrrigationPredictRequest(
+        soil_moisture=0.04,
+        crop_types=["Arecanut"],
+        growth_stages={"Arecanut": "Vegetative"},
+        num_plants={"Arecanut": 50},
+        model="LSTM",
+    )
+    moist_request = IrrigationPredictRequest(
+        soil_moisture=0.55,
+        crop_types=["Arecanut"],
+        growth_stages={"Arecanut": "Vegetative"},
+        num_plants={"Arecanut": 50},
+        model="LSTM",
+    )
+
+    dry = await irrigation_service.predict(dry_request, mock_loader, mock_db_session)
+    moist = await irrigation_service.predict(moist_request, mock_loader, mock_db_session)
+
+    assert dry.plan[0].water_liters > moist.plan[0].water_liters
+    assert dry.total_water_liters["Arecanut"] > moist.total_water_liters["Arecanut"]

@@ -94,7 +94,7 @@ export default function IrrigationPage() {
     columnHelper.accessor('water_liters', {
       header: 'Water (L)',
       cell: (info) => (
-        <span className="font-mono text-sm">{info.getValue() > 0 ? `${info.getValue()}L` : '—'}</span>
+        <span className="font-mono text-sm">{info.getValue() > 0 ? `${info.getValue().toFixed(0)}L` : '—'}</span>
       ),
     }),
     columnHelper.accessor('soil_moisture', {

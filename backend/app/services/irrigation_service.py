@@ -12,6 +12,18 @@ BASE_WATER_REQUIREMENTS = {
     "Pepper":   {"Vegetative": 6,  "Flowering": 8,  "Fruiting": 7,  "Dormant": 3},
 }
 
+TARGET_SOIL_MOISTURE = 0.72
+SATURATION_THRESHOLD = 0.8
+
+
+def get_moisture_factor(soil_moisture: float) -> float:
+    if soil_moisture >= SATURATION_THRESHOLD:
+        return 0.0
+
+    deficit_ratio = (TARGET_SOIL_MOISTURE - soil_moisture) / TARGET_SOIL_MOISTURE
+    return float(np.clip(deficit_ratio, 0.0, 1.15))
+
+
 class IrrigationService:
     async def predict(self, request: IrrigationPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> IrrigationPredictResponse:
         # 1. Base water need is already in BASE_WATER_REQUIREMENTS
@@ -40,11 +52,12 @@ class IrrigationService:
                 efficiency = 0.8  # 20% loss in collection/infiltration
                 rainfall_contribution = (rain_today * roof_area * efficiency) / num_plants if num_plants > 0 else 0
                 
-                # Calculate actual irrigation needed (base need minus rainfall)
-                irrigation_needed = max(0, base_need - rainfall_contribution)
+                moisture_factor = get_moisture_factor(current_moisture)
+                moisture_adjusted_need = base_need * moisture_factor
+                irrigation_needed = max(0, moisture_adjusted_need - rainfall_contribution)
                 
-                # CRITICAL FIX: Check soil saturation - do NOT irrigate if already wet
-                should_skip_saturation = current_moisture > 0.8
+                # Check soil saturation - do NOT irrigate if already wet
+                should_skip_saturation = current_moisture >= SATURATION_THRESHOLD
                 
                 # Determine decision based on irrigation need and soil state
                 if should_skip_saturation:
@@ -54,15 +67,15 @@ class IrrigationService:
                 elif irrigation_needed <= 0:
                     decision = "No Irrigate"
                     liters = 0.0
-                    reason = f"Rainfall sufficient ({rain_today:.1f}mm covers need), no irrigation needed."
+                    reason = f"Soil moisture ({current_moisture:.2f}) and rainfall ({rain_today:.1f}mm) cover today's need."
                 elif irrigation_needed < (base_need * 0.5):
                     decision = "Monitor"
-                    liters = irrigation_needed * num_plants
-                    reason = f"Rainfall partially covers need ({rain_today:.1f}mm), reducing irrigation to {liters:.1f}L."
+                    liters = round(irrigation_needed * num_plants, 2)
+                    reason = f"Moderate moisture ({current_moisture:.2f}); rainfall partially covers need, apply {liters:.1f}L."
                 else:
                     decision = "Irrigate"
-                    liters = irrigation_needed * num_plants
-                    reason = f"Low rainfall ({rain_today:.1f}mm) and moisture ({current_moisture:.2f}), irrigation needed."
+                    liters = round(irrigation_needed * num_plants, 2)
+                    reason = f"Soil moisture deficit ({current_moisture:.2f}) with low rainfall ({rain_today:.1f}mm), irrigation needed."
 
                 total_water_liters[crop] += liters
                 
@@ -81,12 +94,12 @@ class IrrigationService:
                     decision=decision,
                     water_liters=liters,
                     reason=reason,
-                    soil_moisture_forecast=current_moisture
+                    soil_moisture_forecast=round(current_moisture, 4)
                 ))
                 
         return IrrigationPredictResponse(
             plan=plan,
-            total_water_liters=total_water_liters,
+            total_water_liters={crop: round(liters, 2) for crop, liters in total_water_liters.items()},
             model_used=request.model
         )
 
