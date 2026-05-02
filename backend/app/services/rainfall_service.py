@@ -13,45 +13,25 @@ class RainfallService:
         df = await nasa_service.get_recent(days=30, db=db_session)
         if len(df) < 30:
             raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 30 days). Please trigger a data fetch.")
-            
-        # 2. Build feature matrix
-        raw_features = preprocessor.prepare_rainfall_features(df)
+
+        try:
+            predicted_mm = self._predict_with_model(request, model_loader, df)
+            model_used = request.model
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            predicted_mm = self._predict_from_recent_rainfall(df, request.days)
+            model_used = f"{request.model} (recent-rainfall fallback)"
+        except Exception:
+            predicted_mm = self._predict_from_recent_rainfall(df, request.days)
+            model_used = f"{request.model} (recent-rainfall fallback)"
+
+        actual_days = min(request.days, len(predicted_mm))
         
-        # 3. Normalize with rainfall scaler
-        scaler = model_loader.get_scaler("rainfall")
-        # Ensure our features match the scaler's training shape
-        # In a real app we might only scale certain columns, but here we assume the scaler expects all 8 features
-        scaled_features = scaler.transform(raw_features)
-        
-        # 4. Create sliding window [1, 30, 8]
-        X = preprocessor.create_sliding_window(scaled_features, window_size=30)
-        
-        # 5. Load selected model
-        model = model_loader.get_model("rainfall", request.model)
-        
-        # 6. Predict -> raw output (usually 14 days)
-        # Note: We assume the model predicts limited days directly.
-        raw_output = model.predict(X, verbose=0)
-        
-        # Determine how many days we can actually extract
-        output_len = raw_output.shape[1] if len(raw_output.shape) == 2 else len(raw_output.flatten())
-        actual_days = min(request.days, output_len)
-        
-        # 7. Inverse transform (requires dummy structure if scaler expects 8 features)
-        dummy = np.zeros((actual_days, raw_features.shape[1]))
-        if len(raw_output.shape) == 2:
-            dummy[:, 0] = raw_output[0, :actual_days]
-        else:
-            dummy[:, 0] = raw_output.flatten()[:actual_days] # Fallback
-            
-        unscaled_dummy = scaler.inverse_transform(dummy)
-        predicted_mm = unscaled_dummy[:, 0]
-        
-        # 8. Clip to realistic bounds for tropical region [0, 200 mm]
-        # CRITICAL FIX: Add upper bound to prevent unrealistic extreme predictions
+        # Clip to realistic bounds for tropical region [0, 200 mm]
         predicted_mm = np.clip(predicted_mm, 0.0, 200.0)
         
-        # 9. Confidence interval +/- 15%
+        # Confidence interval +/- 15%
         predictions = []
         start_date = request.start_date or (date.today() + timedelta(days=1))
         
@@ -67,8 +47,39 @@ class RainfallService:
             
         return RainfallPredictResponse(
             predictions=predictions,
-            model_used=request.model,
+            model_used=model_used,
             generated_at=datetime.utcnow()
         )
+
+    def _predict_with_model(self, request: RainfallPredictRequest, model_loader: ModelLoader, df) -> np.ndarray:
+        raw_features = preprocessor.prepare_rainfall_features(df)
+        scaler = model_loader.get_scaler("rainfall")
+        scaled_features = scaler.transform(raw_features)
+        X = preprocessor.create_sliding_window(scaled_features, window_size=30)
+        model = model_loader.get_model("rainfall", request.model)
+        raw_output = model.predict(X, verbose=0)
+
+        output_len = raw_output.shape[1] if len(raw_output.shape) == 2 else len(raw_output.flatten())
+        actual_days = min(request.days, output_len)
+
+        dummy = np.zeros((actual_days, raw_features.shape[1]))
+        if len(raw_output.shape) == 2:
+            dummy[:, 0] = raw_output[0, :actual_days]
+        else:
+            dummy[:, 0] = raw_output.flatten()[:actual_days]
+
+        return scaler.inverse_transform(dummy)[:, 0]
+
+    def _predict_from_recent_rainfall(self, df, days: int) -> np.ndarray:
+        rainfall = df["precipitation_mm"].astype(float).to_numpy()
+        recent = rainfall[-14:] if len(rainfall) >= 14 else rainfall
+        weekly_pattern = rainfall[-7:] if len(rainfall) >= 7 else recent
+        baseline = float(np.mean(recent)) if len(recent) else 0.0
+
+        forecast = []
+        for i in range(days):
+            pattern_value = float(weekly_pattern[i % len(weekly_pattern)]) if len(weekly_pattern) else baseline
+            forecast.append((pattern_value * 0.65) + (baseline * 0.35))
+        return np.array(forecast, dtype=float)
 
 rainfall_service = RainfallService()

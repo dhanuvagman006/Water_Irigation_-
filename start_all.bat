@@ -1,19 +1,7 @@
 @echo off
-echo =========================================
-echo Starting Water Irrigation System
-echo =========================================
-echo Press Ctrl+C to stop both servers.
-echo.
+setlocal
 
+set "ROOT_DIR=%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT_DIR%scripts\start_all.ps1"
 
-echo [1/3] Activating Virtual Environment and Training Model...
-@REM call venv\Scripts\activate
-@REM python backend\app\ml\train.py
-
-echo [2/3] Starting Backend Server...
-start /B "" cmd /c "call venv\Scripts\activate && cd backend && pip install -r requirements.txt && python -m uvicorn app.main:app --reload"
-
-echo [3/3] Installing Dependencies and Starting Frontend Server...
-cd frontend
-call npm install
-npm run dev
+exit /b %ERRORLEVEL%

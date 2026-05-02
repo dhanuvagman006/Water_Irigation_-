@@ -2,7 +2,6 @@ import os
 import logging
 from fastapi import HTTPException
 import joblib
-import tensorflow as tf
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -12,18 +11,33 @@ class ModelLoader:
         self.models_dir = models_dir
         self.models: dict = {}
         self.scalers: dict = {}
+        self.load_errors: dict[str, str] = {}
         self.expected_models = [
             "lstm", "gru", "bilstm", "cnn_lstm", "wlstm", "stacked_lstm"
         ]
         self.modules = ["rainfall", "tank", "irrigation"]
 
     async def load_all(self):
+        if not settings.LOAD_MODELS:
+            logger.info("Model loading disabled; prediction endpoints will use fallback logic where available.")
+            self.load_errors = {
+                f"{module}/{name}": "model loading disabled"
+                for module in self.modules
+                for name in self.expected_models
+            }
+            return
+
+        os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+        import tensorflow as tf
+
+        tf.get_logger().setLevel(logging.ERROR)
         logger.info("Starting model loading sequence...")
         loaded_count = 0
+        self.load_errors.clear()
         for module in self.modules:
             module_dir = os.path.join(self.models_dir, module)
             if not os.path.exists(module_dir):
-                logger.warning(f"Module directory {module_dir} missing.")
+                logger.warning("Model module directory missing: %s", module_dir)
                 continue
                 
             for name in self.expected_models:
@@ -31,17 +45,23 @@ class ModelLoader:
                 key = f"{module}/{name}"
                 try:
                     if os.path.exists(file_path):
-                        # Load Keras model
                         model = tf.keras.models.load_model(file_path)
                         self.models[key] = model
                         loaded_count += 1
-                        logger.info(f"Loaded model: {key}")
+                        logger.info("Loaded model: %s", key)
                     else:
-                        logger.warning(f"Model file {file_path} not found.")
+                        self.load_errors[key] = "model file not found"
                 except Exception as e:
-                    logger.error(f"Failed to load model {key}: {e}")
+                    self.load_errors[key] = str(e).splitlines()[0]
         
-        logger.info(f"Loaded {loaded_count}/{len(self.expected_models)*3} models.")
+        expected_count = len(self.expected_models) * len(self.modules)
+        logger.info("Loaded %s/%s models.", loaded_count, expected_count)
+        if self.load_errors:
+            logger.warning(
+                "%s model artifact(s) could not be loaded; prediction endpoints will use fallback logic where available.",
+                len(self.load_errors),
+            )
+            logger.debug("Model load errors: %s", self.load_errors)
 
     def get_model(self, module: str, name: str):
         # Normalize name to match internal keys (e.g. CNN-LSTM -> cnn_lstm, StackedLSTM -> stacked_lstm)
