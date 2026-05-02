@@ -52,14 +52,14 @@ $frontend = $null
 
 try {
     Write-Host "[1/3] Installing backend dependencies..."
-    & $pythonExe -m pip install -r (Join-Path $backendDir "requirements.txt")
+    & $py -m pip install -r (Join-Path $backendDir "requirements.txt")
     if ($LASTEXITCODE -ne 0) {
         throw "Backend dependency install failed."
     }
 
     Write-Host "[2/3] Starting Backend Server..."
     $backend = Start-ManagedProcess `
-        -FilePath $pythonExe `
+        -FilePath $py `
         -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8001") `
         -WorkingDirectory $backendDir `
         -Name "backend"
