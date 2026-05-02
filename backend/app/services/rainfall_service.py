@@ -7,6 +7,8 @@ from app.services.nasa_service import nasa_service
 from app.services.preprocessor import preprocessor
 from app.services.model_loader import ModelLoader
 
+HORIZON_MAP = {"short": 1, "medium": 7, "long": 15}
+
 class RainfallService:
     async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
         df = await nasa_service.get_recent(days=30, db=db_session)
@@ -14,8 +16,7 @@ class RainfallService:
             raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 30 days). Please trigger a data fetch.")
 
         try:
-            predicted_mm = self._predict_with_model(request, model_loader, df)
-            model_used = request.model
+            predicted_mm, model_used = self._predict_with_model(request, model_loader, df)
         except HTTPException as exc:
             if exc.status_code != 404:
                 raise
@@ -48,24 +49,28 @@ class RainfallService:
             generated_at=datetime.utcnow()
         )
 
-    def _predict_with_model(self, request: RainfallPredictRequest, model_loader: ModelLoader, df) -> np.ndarray:
+    def _predict_with_model(self, request: RainfallPredictRequest, model_loader: ModelLoader, df):
         raw_features = preprocessor.prepare_rainfall_features(df)
         scaler = model_loader.get_scaler("rainfall")
         scaled_features = scaler.transform(raw_features)
         X = preprocessor.create_sliding_window(scaled_features, window_size=30)
-        model = model_loader.get_model("rainfall", request.model)
+
+        horizon = getattr(request, "horizon", "medium")
+        model = model_loader.get_model("rainfall", request.model, horizon=horizon)
         raw_output = model.predict(X, verbose=0)
 
-        output_len = raw_output.shape[1] if len(raw_output.shape) == 2 else len(raw_output.flatten())
+        if len(raw_output.shape) == 2:
+            output = raw_output[0]
+        else:
+            output = raw_output.flatten()
+
+        output_len = len(output)
         actual_days = min(request.days, output_len)
 
         dummy = np.zeros((actual_days, raw_features.shape[1]))
-        if len(raw_output.shape) == 2:
-            dummy[:, 0] = raw_output[0, :actual_days]
-        else:
-            dummy[:, 0] = raw_output.flatten()[:actual_days]
+        dummy[:, 0] = output[:actual_days]
 
-        return scaler.inverse_transform(dummy)[:, 0]
+        return scaler.inverse_transform(dummy)[:, 0], f"{request.model} ({horizon})"
 
     def _predict_from_recent_rainfall(self, df, days: int) -> np.ndarray:
         rainfall = df["precipitation_mm"].astype(float).to_numpy()

@@ -9,8 +9,9 @@ class DayPrediction(BaseModel):
     confidence_high: float  # 90th percentile estimate
 
 class RainfallPredictRequest(BaseModel):
-    model: str = "LSTM"     # model name
-    days: int = Field(default=14, ge=1, le=30)  # forecast horizon
+    model: str = "LSTM"
+    days: int = Field(default=7, ge=1, le=15)
+    horizon: str = Field(default="medium", pattern="^(short|medium|long)$")
     start_date: Optional[date] = None
 
     @field_validator("model")

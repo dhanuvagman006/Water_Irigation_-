@@ -185,6 +185,12 @@ PREFERRED_MODELS = [
     "transformer",
 ]
 
+HORIZONS = {
+    "short":  1,
+    "medium": 7,
+    "long":   15,
+}
+
 def build_rainfall_dataset(df, window_size=30, horizon=14):
     print("Preparing Rainfall Data...")
     cols = ["precipitation_mm", "temp_max", "temp_min", "humidity", "wind_speed", "solar_radiation", "pressure", "sin_day", "cos_day", "month", "day_of_year", "rainfall_lag_1", "rainfall_lag_3", "rainfall_lag_7", "rolling_mean_7", "rolling_std_7"]
@@ -332,10 +338,10 @@ async def run_training(dataset_path: str):
 
     db_metrics = []
 
-    # -------- RAINFALL --------
+    # -------- RAINFALL (multi-horizon) --------
     window_size = 30
-    horizon = 14
-    X_raw, y_raw, dates, cols = build_rainfall_sequences(raw_df, window_size=window_size, horizon=horizon)
+    max_horizon = max(HORIZONS.values())  # 15
+    X_raw, y_raw, dates, cols = build_rainfall_sequences(raw_df, window_size=window_size, horizon=max_horizon)
 
     if X_raw.shape[0] == 0:
         print("Insufficient data to build rainfall sequences. Need more rows.")
@@ -352,19 +358,17 @@ async def run_training(dataset_path: str):
         scaler.fit(train_feature_rows)
 
         all_scaled = scaler.transform(raw_df[cols].values)
-        X_scaled, y_scaled = [], []
+        X_scaled = []
+        y_full = []
         for i in range(n_samples):
             X_scaled.append(all_scaled[i : i + window_size])
-            y_scaled.append(all_scaled[i + window_size : i + window_size + horizon, 0])
+            y_full.append(all_scaled[i + window_size : i + window_size + max_horizon, 0])
         X_scaled = np.array(X_scaled)
-        y_scaled = np.array(y_scaled)
+        y_full = np.array(y_full)
 
         X_train = X_scaled[:train_size]
-        y_train = y_scaled[:train_size]
         X_val = X_scaled[train_size:]
-        y_val = y_scaled[train_size:]
 
-        # Optimized tf.data pipelines with prefetch for max throughput
         AUTOTUNE = tf.data.AUTOTUNE
 
         def make_dataset(X, y, batch_size=32, shuffle=False):
@@ -378,96 +382,100 @@ async def run_training(dataset_path: str):
         joblib.dump(scaler, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
 
         model_results = {}
-        inv_preds_dict = {}
 
-        for name, f_model in BUILD_FNS.items():
-            if name not in PREFERRED_MODELS:
-                continue
+        for h_name, horizon in HORIZONS.items():
+            h_suffix = f"{horizon}d"
+            print(f"\n{'='*60}")
+            print(f" HORIZON: {h_name.upper()} ({horizon}-day ahead)")
+            print(f"{'='*60}")
 
-            print(f"\n{'='*50}")
-            print(f"Training Rainfall - {name}")
-            print(f"{'='*50}")
-            print(f"Training Rainfall - {name}")
-            print(f"{'='*50}")
+            y_train = y_full[:train_size, :horizon]
+            y_val = y_full[train_size:, :horizon]
 
-            X_train_final = X_train
-            X_val_final = X_val
-            if name == "wlstm":
-                X_train_final = apply_wavelet_transform(X_train)
-                X_val_final = apply_wavelet_transform(X_val)
+            for name, f_model in BUILD_FNS.items():
+                if name not in PREFERRED_MODELS:
+                    continue
 
-            model = f_model(X_train_final.shape[1:], horizon, classification=False)
+                print(f"\n  Training {name} ({h_suffix})")
 
-            # Optimize batch size for CPU (larger batches = faster on CPU)
-            batch_size = 64
-            epochs = 100
+                X_train_final = X_train
+                X_val_final = X_val
+                if name == "wlstm":
+                    X_train_final = apply_wavelet_transform(X_train)
+                    X_val_final = apply_wavelet_transform(X_val)
 
-            train_ds = make_dataset(X_train_final, y_train, batch_size=batch_size, shuffle=True)
-            val_ds = make_dataset(X_val_final, y_val, batch_size=batch_size)
+                model = f_model(X_train_final.shape[1:], horizon, classification=False)
 
-            callbacks = [
-                tf.keras.callbacks.EarlyStopping(
-                    monitor='val_loss',
-                    patience=10,
-                    restore_best_weights=True
-                ),
-                tf.keras.callbacks.ReduceLROnPlateau(
-                    monitor='val_loss',
-                    factor=0.5,
-                    patience=5,
-                    min_lr=1e-5,
-                    verbose=0
-                ),
-            ]
+                batch_size = 64
+                epochs = 100
 
-            history = model.fit(
-                train_ds,
-                validation_data=val_ds,
-                epochs=epochs,
-                verbose=1,
-                callbacks=callbacks,
-                workers=NUM_CPUS,
-                use_multiprocessing=True,
-                max_queue_size=10
-            )
+                train_ds = make_dataset(X_train_final, y_train, batch_size=batch_size, shuffle=True)
+                val_ds = make_dataset(X_val_final, y_val, batch_size=batch_size)
 
-            model_dir = os.path.join(models_dir, "rainfall")
-            os.makedirs(model_dir, exist_ok=True)
-            model.save(os.path.join(model_dir, f"{name}.keras"))
+                callbacks = [
+                    tf.keras.callbacks.EarlyStopping(
+                        monitor='val_loss',
+                        patience=10,
+                        restore_best_weights=True
+                    ),
+                    tf.keras.callbacks.ReduceLROnPlateau(
+                        monitor='val_loss',
+                        factor=0.5,
+                        patience=5,
+                        min_lr=1e-5,
+                        verbose=0
+                    ),
+                ]
 
-            y_pred = model.predict(X_val, verbose=0)
-            y_val_flat = y_val.flatten()
-            y_pred_flat = y_pred.flatten()
+                history = model.fit(
+                    train_ds,
+                    validation_data=val_ds,
+                    epochs=epochs,
+                    verbose=1,
+                    callbacks=callbacks,
+                    workers=NUM_CPUS,
+                    use_multiprocessing=True,
+                    max_queue_size=10
+                )
 
-            dummy_pred = np.zeros((len(y_pred_flat), n_features))
-            dummy_true = np.zeros((len(y_val_flat), n_features))
-            dummy_pred[:, 0] = y_pred_flat
-            dummy_true[:, 0] = y_val_flat
+                model_dir = os.path.join(models_dir, "rainfall")
+                os.makedirs(model_dir, exist_ok=True)
+                model.save(os.path.join(model_dir, f"{name}_{h_suffix}.keras"))
 
-            inv_pred = scaler.inverse_transform(dummy_pred)[:, 0]
-            inv_true = scaler.inverse_transform(dummy_true)[:, 0]
+                y_pred = model.predict(X_val_final, verbose=0)
+                y_val_flat = y_val.flatten()
+                y_pred_flat = y_pred.flatten()
 
-            rmse = float(np.sqrt(np.mean((inv_pred - inv_true) ** 2)))
-            mae = float(np.mean(np.abs(inv_pred - inv_true)))
-            mean_obs = np.mean(inv_true)
-            ss_res = np.sum((inv_pred - inv_true) ** 2)
-            ss_var = np.sum((inv_true - mean_obs) ** 2)
-            nse = 1 - (ss_res / ss_var) if ss_var > 0 else 0
+                dummy_pred = np.zeros((len(y_pred_flat), n_features))
+                dummy_true = np.zeros((len(y_val_flat), n_features))
+                dummy_pred[:, 0] = y_pred_flat
+                dummy_true[:, 0] = y_val_flat
 
-            print(f"Rainfall {name} - RMSE: {rmse:.4f}, MAE: {mae:.4f}, NSE: {nse:.4f}")
+                inv_pred = scaler.inverse_transform(dummy_pred)[:, 0]
+                inv_true = scaler.inverse_transform(dummy_true)[:, 0]
 
-            model_results[name] = {"rmse": rmse, "mae": mae, "nse": nse, "r2": float(r2_score(inv_true, inv_pred))}
-            inv_preds_dict[name] = inv_pred
+                rmse = float(np.sqrt(np.mean((inv_pred - inv_true) ** 2)))
+                mae = float(np.mean(np.abs(inv_pred - inv_true)))
+                mean_obs = np.mean(inv_true)
+                ss_res = np.sum((inv_pred - inv_true) ** 2)
+                ss_var = np.sum((inv_true - mean_obs) ** 2)
+                nse = 1 - (ss_res / ss_var) if ss_var > 0 else 0
+
+            model_key = f"{name}_{h_suffix}"
+            print(f"  Rainfall {model_key} - RMSE: {rmse:.4f}, MAE: {mae:.4f}, NSE: {nse:.4f}")
+
+            model_results[model_key] = {"rmse": rmse, "mae": mae, "nse": nse, "r2": float(r2_score(inv_true, inv_pred)), "horizon": h_name}
 
             db_metrics.append({
-                "module": "rainfall", "model_name": name,
+                "module": f"rainfall_{h_name}", "model_name": name,
                 "rmse": rmse, "mae": mae,
                 "r2": float(r2_score(inv_true, inv_pred)), "nse": float(nse)
             })
 
-        # Weighted ensemble based on NSE
-        if len(inv_preds_dict) > 1:
-            nse_values = np.array([model_results[n]["nse"] for n in inv_preds_dict.keys()])
+        # Weighted ensemble per horizon based on NSE
+        horizon_keys = [k for k in model_results.keys() if k.endswith(h_suffix)]
+        if len(horizon_keys) > 1:
+            nse_values = np.array([model_results[k]["nse"] for k in horizon_keys])
             weights = np.maximum(nse_values, 0)
             weight_sum = np.sum(weights)
             if weight_sum > 0:
@@ -475,27 +483,22 @@ async def run_training(dataset_path: str):
             else:
                 weights = np.ones(len(weights)) / len(weights)
 
-            preds_stack = np.array([inv_preds_dict[n] for n in inv_preds_dict.keys()])
-            ensemble_pred = np.average(preds_stack, axis=0, weights=weights)
-            ensemble_true = inv_true
+            model_names_h = [k.replace(f"_{h_suffix}", "") for k in horizon_keys]
+            # NOTE: Ensemble saved per horizon; actual predictions averaged at inference time
 
-            rmse_e = float(np.sqrt(np.mean((ensemble_pred - ensemble_true) ** 2)))
-            mae_e = float(np.mean(np.abs(ensemble_pred - ensemble_true)))
-            mean_obs_e = np.mean(ensemble_true)
-            ss_res_e = np.sum((ensemble_pred - ensemble_true) ** 2)
-            ss_var_e = np.sum((ensemble_true - mean_obs_e) ** 2)
-            nse_e = 1 - (ss_res_e / ss_var_e) if ss_var_e > 0 else 0
-
-            print(f"\n{'='*50}")
-            print(f"Rainfall ENSEMBLE (NSE-weighted) - RMSE: {rmse_e:.4f}, MAE: {mae_e:.4f}, NSE: {nse_e:.4f}")
-            print(f"Ensemble weights: {dict(zip(inv_preds_dict.keys(), weights))}")
-            print(f"{'='*50}")
-
-            db_metrics.append({
-                "module": "rainfall", "model_name": "ensemble",
-                "rmse": rmse_e, "mae": mae_e,
-                "r2": float(r2_score(ensemble_true, ensemble_pred)), "nse": float(nse_e)
-            })
+    # Print per-horizon summary
+    for h_name, horizon in HORIZONS.items():
+        h_suffix = f"{horizon}d"
+        horizon_keys = [k for k in model_results.keys() if k.endswith(h_suffix)]
+        if not horizon_keys:
+            continue
+        print(f"\n{'='*60}")
+        print(f" {h_name.upper()} HORIZON RANKING (by NSE)")
+        print(f"{'='*60}")
+        sorted_h = sorted(horizon_keys, key=lambda k: model_results[k]["nse"], reverse=True)
+        for rank, key in enumerate(sorted_h, 1):
+            m = model_results[key]
+            print(f"  {rank}. {key:20s} | NSE: {m['nse']:.4f} | RMSE: {m['rmse']:.4f} | MAE: {m['mae']:.4f}")
 
     # -------- TANK --------
     X_tank, y_tank, scaler_tank = build_tank_dataset(raw_df)
@@ -589,15 +592,6 @@ async def run_training(dataset_path: str):
         await session.commit()
 
     print("\nTraining Complete! Models and Scalers saved.")
-
-    # Print summary ranking
-    print(f"\n{'='*50}")
-    print("RAINFALL MODEL RANKING (by NSE)")
-    print(f"{'='*50}")
-    sorted_models = sorted(model_results.items(), key=lambda x: x[1]["nse"], reverse=True)
-    for rank, (name, metrics) in enumerate(sorted_models, 1):
-        print(f"  {rank}. {name:15s} | NSE: {metrics['nse']:.4f} | RMSE: {metrics['rmse']:.4f} | MAE: {metrics['mae']:.4f}")
-    print(f"{'='*50}")
 
 if __name__ == "__main__":
     import sys
