@@ -88,7 +88,7 @@ export default function RainfallPage() {
 
   const filteredMetrics = useMemo(() => {
     if (!metrics) return []
-    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'Transformer', 'StackedLSTM']
+    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'StackedLSTM']
     
     // Deduplicate and filter, keeping the most recent record
     const latestMetricsMap = new Map<ModelName, ModelMetrics>()

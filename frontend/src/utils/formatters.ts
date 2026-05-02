@@ -47,7 +47,7 @@ export const MODEL_COLORS: Record<string, string> = {
   GRU: '#378ADD',
   BiLSTM: '#8B5CF6',
   'CNN-LSTM': '#E24B4A',
-  Transformer: '#BA7517',
+  WLSTM: '#BA7517',
   StackedLSTM: '#3B6D11',
 }
 
@@ -57,7 +57,7 @@ export function normalizeModelName(backendName: string): string {
     gru: 'GRU',
     bilstm: 'BiLSTM',
     cnn_lstm: 'CNN-LSTM',
-    transformer: 'Transformer',
+    wlstm: 'WLSTM',
     stacked_lstm: 'StackedLSTM'
   };
   return map[backendName.toLowerCase()] || backendName;

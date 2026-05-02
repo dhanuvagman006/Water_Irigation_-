@@ -2,7 +2,7 @@
 // AquaAI — Water Management System Types
 // ============================================================
 
-export type ModelName = 'LSTM' | 'GRU' | 'BiLSTM' | 'CNN-LSTM' | 'Transformer' | 'StackedLSTM'
+export type ModelName = 'LSTM' | 'GRU' | 'BiLSTM' | 'CNN-LSTM' | 'WLSTM' | 'StackedLSTM'
 
 export type RainfallPrediction = {
   date: string            // ISO date string
