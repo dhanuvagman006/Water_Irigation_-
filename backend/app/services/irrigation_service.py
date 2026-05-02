@@ -23,65 +23,56 @@ class IrrigationService:
         plan = []
         total_water_liters = {crop: 0.0 for crop in request.crop_types}
         
-        # Determine crop and stage encodings (simplified for the demo)
-        crop_map = {"Arecanut": 0, "Coconut": 1, "Pepper": 2}
-        stage_map = {"Vegetative": 0, "Flowering": 1, "Fruiting": 2, "Dormant": 3}
-        decision_map = {0: "Irrigate", 1: "No Irrigate", 2: "Monitor"}
-        
         for crop in request.crop_types:
             stage = request.growth_stages.get(crop, "Vegetative")
             base_need = BASE_WATER_REQUIREMENTS.get(crop, {}).get(stage, 10)
             num_plants = request.num_plants.get(crop, 1)
             
-            crop_encoded = crop_map.get(crop, 0)
-            stage_encoded = stage_map.get(stage, 0)
-            
             current_moisture = request.soil_moisture
             
             for i in range(14):
                 rain_today = rain_preds[i]
-                # Dummy simulation of future rainfall impacts
-                rain_day2 = rain_preds[i+1] if i+1 < 14 else 0.0
-                rain_day3 = rain_preds[i+2] if i+2 < 14 else 0.0
                 
-                # Mock high temp for feature
-                temp_max = 30.0 
+                # CRITICAL FIX: Account for rainfall in water need calculation
+                # Assume roof_area = 100 m² for rain-to-water conversion
+                # 1 mm rainfall × area × efficiency = liters per plant
+                roof_area = getattr(request, 'roof_area', 100)  # default 100 m²
+                efficiency = 0.8  # 20% loss in collection/infiltration
+                rainfall_contribution = (rain_today * roof_area * efficiency) / num_plants if num_plants > 0 else 0
                 
-                # 3. Build feature array
-                features = np.array([[current_moisture, rain_today, rain_day2, rain_day3, temp_max, crop_encoded, stage_encoded]])
+                # Calculate actual irrigation needed (base need minus rainfall)
+                irrigation_needed = max(0, base_need - rainfall_contribution)
                 
-                try:
-                    scaler = model_loader.get_scaler("irrigation")
-                    scaled = scaler.transform(features)
-                    model = model_loader.get_model("irrigation", request.model)
-                    out = model.predict(scaled, verbose=0)
-                    decision_idx = int(np.argmax(out, axis=1)[0])
-                    decision = decision_map.get(decision_idx, "Monitor")
-                except Exception:
-                    # Fallback logic if model fails/missing
-                    if current_moisture < 0.3 and rain_today < 5.0:
-                        decision = "Irrigate"
-                    elif current_moisture > 0.7 or rain_today > 10.0:
-                        decision = "No Irrigate"
-                    else:
-                        decision = "Monitor"
-
-                if decision == "Irrigate":
-                    liters = base_need * num_plants
-                    reason = f"Low moisture ({current_moisture:.2f}) and low rain predicted."
-                elif decision == "Monitor":
-                    liters = 0.5 * base_need * num_plants
-                    reason = f"Moderate moisture ({current_moisture:.2f}), reducing water."
-                else: # No Irrigate
+                # CRITICAL FIX: Check soil saturation - do NOT irrigate if already wet
+                should_skip_saturation = current_moisture > 0.8
+                
+                # Determine decision based on irrigation need and soil state
+                if should_skip_saturation:
+                    decision = "No Irrigate"
                     liters = 0.0
-                    reason = f"Sufficient moisture/rain ({rain_today:.1f}mm), skipping irrigation."
+                    reason = f"Soil saturated (moisture={current_moisture:.2f}), skipping irrigation."
+                elif irrigation_needed <= 0:
+                    decision = "No Irrigate"
+                    liters = 0.0
+                    reason = f"Rainfall sufficient ({rain_today:.1f}mm covers need), no irrigation needed."
+                elif irrigation_needed < (base_need * 0.5):
+                    decision = "Monitor"
+                    liters = irrigation_needed * num_plants
+                    reason = f"Rainfall partially covers need ({rain_today:.1f}mm), reducing irrigation to {liters:.1f}L."
+                else:
+                    decision = "Irrigate"
+                    liters = irrigation_needed * num_plants
+                    reason = f"Low rainfall ({rain_today:.1f}mm) and moisture ({current_moisture:.2f}), irrigation needed."
 
                 total_water_liters[crop] += liters
                 
-                # Simulate moisture change
-                if decision == "Irrigate":
-                    current_moisture += 0.2
-                current_moisture += (rain_today * 0.05) - 0.1 # EVAP
+                # Update soil moisture based on rainfall and irrigation
+                # Simplified physics: infiltration from rain + irrigation, evapotranspiration loss
+                rainfall_infiltration = (rain_today * 0.15) / 100  # normalized to 0-1 scale
+                irrigation_infiltration = (liters / 1000) * 0.3 / 100 if liters > 0 else 0  # some irrigation water infiltrates
+                evapotranspiration = 0.15 / 100  # daily ET loss normalized
+                
+                current_moisture += rainfall_infiltration + irrigation_infiltration - evapotranspiration
                 current_moisture = float(np.clip(current_moisture, 0.0, 1.0))
                 
                 plan.append(IrrigationDayPlan(

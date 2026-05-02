@@ -47,8 +47,9 @@ class RainfallService:
         unscaled_dummy = scaler.inverse_transform(dummy)
         predicted_mm = unscaled_dummy[:, 0]
         
-        # 8. Clip negative values to 0
-        predicted_mm = np.clip(predicted_mm, 0.0, None)
+        # 8. Clip to realistic bounds for tropical region [0, 200 mm]
+        # CRITICAL FIX: Add upper bound to prevent unrealistic extreme predictions
+        predicted_mm = np.clip(predicted_mm, 0.0, 200.0)
         
         # 9. Confidence interval +/- 15%
         predictions = []

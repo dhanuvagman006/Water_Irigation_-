@@ -40,7 +40,7 @@ async def test_metrics_returns_6_models(client: AsyncClient, mock_db_session, mo
         {"id": 2, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "gru"},
         {"id": 3, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "bilstm"},
         {"id": 4, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "cnn_lstm"},
-        {"id": 5, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "transformer"},
+        {"id": 5, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "wlstm"},
         {"id": 6, "module": "rainfall", "evaluated_at": "2024-01-01T00:00:00", "model_name": "stacked_lstm"}
     ]
     response = await client.get("/api/rainfall/metrics")

@@ -26,7 +26,7 @@ def mock_loader():
         "tank/lstm": MagicMock(),
         "irrigation/lstm": MagicMock()
     }
-    loader.expected_models = ["lstm", "gru", "bilstm", "cnn_lstm", "transformer", "stacked_lstm"]
+    loader.expected_models = ["lstm", "gru", "bilstm", "cnn_lstm", "wlstm", "stacked_lstm"]
     # Provide dummy scalers or features so tests don't fail immediately
     yield loader
 

@@ -1,4 +1,4 @@
-from sklearn.metrics import r2_score, f1_score, accuracy_score
+from sklearn.metrics import r2_score, f1_score
 import os
 import sys
 import numpy as np
@@ -6,7 +6,7 @@ import pandas as pd
 import joblib
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import LSTM, GRU, Bidirectional, Dense, Conv1D, MaxPooling1D, Flatten, Input, MultiHeadAttention, Dropout, LayerNormalization, GlobalAveragePooling1D
+from tensorflow.keras.layers import LSTM, GRU, Bidirectional, Dense, Conv1D, MaxPooling1D, Flatten, Input, MultiHeadAttention, Dropout, LayerNormalization, GlobalAveragePooling1D, SimpleRNN, Attention
 from sklearn.preprocessing import MinMaxScaler
 import pywt
 from datetime import datetime
@@ -24,7 +24,7 @@ from app.services.preprocessor import preprocessor
 #########################################
 def build_lstm(input_shape, out_dim, classification=False):
     model = Sequential()
-    model.add(LSTM(32, input_shape=input_shape))
+    model.add(LSTM(64, input_shape=input_shape))
     if classification:
         model.add(Dense(out_dim, activation='softmax'))
         model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
@@ -35,7 +35,7 @@ def build_lstm(input_shape, out_dim, classification=False):
 
 def build_gru(input_shape, out_dim, classification=False):
     model = Sequential()
-    model.add(GRU(32, input_shape=input_shape))
+    model.add(GRU(64, input_shape=input_shape))
     if classification:
         model.add(Dense(out_dim, activation='softmax'))
         model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
@@ -132,22 +132,70 @@ def build_wlstm(input_shape, out_dim, classification=False):
         model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     return model
 
+def build_simplernn(input_shape, out_dim, classification=False):
+    model = Sequential()
+    model.add(SimpleRNN(64, input_shape=input_shape))
+    if classification:
+        model.add(Dense(out_dim, activation='softmax'))
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        model.add(Dense(out_dim))
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
+def build_lstm_attention(input_shape, out_dim, classification=False):
+    # LSTM with self-attention pooling
+    inputs = Input(shape=input_shape)
+    x = LSTM(64, return_sequences=True)(inputs)
+    # Self-attention
+    att = Attention()([x, x])
+    x = GlobalAveragePooling1D()(att)
+    x = Dense(64, activation='relu')(x)
+    if classification:
+        outputs = Dense(out_dim, activation='softmax')(x)
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    else:
+        outputs = Dense(out_dim)(x)
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
 BUILD_FNS = {
     "lstm": build_lstm,
     "gru": build_gru,
     "cnn_lstm": build_cnn_lstm,
+    "bilstm": build_bilstm,
+    "simplernn": build_simplernn,
+    "lstm_attention": build_lstm_attention,
+    "stacked_lstm": build_stacked_lstm,
     "mlp": build_mlp,
     "wlstm": build_wlstm
 }
 
-#########################################
-# DATA PREP MODULES
-#########################################
+# Preferred models for production training (only keep primary candidates)
+PREFERRED_MODELS = [
+    "lstm",
+    "gru",
+    "bilstm",
+    "cnn_lstm",
+    "simplernn",
+    "lstm_attention",
+    "wlstm",
+    "stacked_lstm",
+]
+
 def build_rainfall_dataset(df, window_size=30, horizon=14):
     print("Preparing Rainfall Data...")
     cols = ["precipitation_mm", "temp_max", "temp_min", "humidity", "wind_speed", "solar_radiation", "pressure", "sin_day", "cos_day"]
     scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(df[cols])
+    
+    # CRITICAL: For proper ML validation, scaler should fit ONLY on training data
+    # Current approach fits on entire dataset, causing data leakage
+    # TODO: Split df by date first, then fit scaler only on train portion
+    # Example: train_df = df[df['date'] < '2020-01-01']; test_df = df[df['date'] >= '2020-01-01']
+    # Then: scaler.fit_transform(train_df[cols])
+    scaled_data = scaler.fit_transform(df[cols])    
     
     X, y = [], []
     for i in range(len(scaled_data) - window_size - horizon + 1):
@@ -156,6 +204,37 @@ def build_rainfall_dataset(df, window_size=30, horizon=14):
         y.append(scaled_data[i + window_size : i + window_size + horizon, 0])
         
     return np.array(X), np.array(y), scaler
+    
+def build_rainfall_sequences(df, window_size=30, horizon=14):
+    """
+    Build raw sequences for time-series forecasting WITHOUT scaling.
+    Returns:
+      X_raw: np.array shape (N_samples, window_size, n_features)
+      y_raw: np.array shape (N_samples, horizon)
+      dates: list of prediction dates corresponding to each sample
+      cols: list of feature column names
+    """
+    print("Preparing Rainfall Sequences (raw)...")
+    cols = ["precipitation_mm", "temp_max", "temp_min", "humidity", "wind_speed", "solar_radiation", "pressure", "sin_day", "cos_day"]
+
+    # Ensure chronological order by date if available
+    if "date" in df.columns:
+        df = df.sort_values(by="date").reset_index(drop=True)
+
+    features = df[cols].values
+    precip = df["precipitation_mm"].values
+
+    X_raw, y_raw, dates = [], [], []
+    last_idx = len(df) - window_size - horizon + 1
+    for i in range(last_idx if last_idx > 0 else 0):
+        X_win = features[i : i + window_size]
+        y_win = precip[i + window_size : i + window_size + horizon]
+        pred_date = df.loc[i + window_size, "date"] if "date" in df.columns else None
+        X_raw.append(X_win)
+        y_raw.append(y_win)
+        dates.append(pred_date)
+
+    return np.array(X_raw), np.array(y_raw), dates, cols
 
 def apply_wavelet_transform(X, wavelet='db1', level=1):
     """
@@ -290,62 +369,151 @@ async def run_training(dataset_path: str):
     db_metrics = []
     
     # -------- RAINFALL --------
-    X_rain, y_rain, scaler_rain = build_rainfall_dataset(raw_df)
-    joblib.dump(scaler_rain, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
-    
-    for name, f_model in BUILD_FNS.items():
-        print(f"Training Rainfall - {name}")
-        
-        # Apply Wavelet Transform if model is WLSTM
-        X_train_final = X_rain
-        if name == "wlstm":
-            print("Applying Wavelet Transform for WLSTM...")
-            X_train_final = apply_wavelet_transform(X_rain)
-            
-        model = f_model(X_train_final.shape[1:], 14, classification=False)
-        
-        # Increase epochs and use more data for >90% accuracy goal
-        # Use full dataset instead of just last 3000
-        history = model.fit(
-            X_train_final, y_rain, 
-            epochs=20, # Increased epochs
-            batch_size=64, 
-            validation_split=0.2, 
-            verbose=1,
-            callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
-        )
-        
-        model.save(os.path.join(models_dir, "rainfall", f"{name}.keras"))
-        val_loss = history.history["val_loss"][-1]
-        val_mae = history.history["val_mae"][-1]
-        
-        # Calculate R2 and NSE on validation set
-        val_size = int(0.2 * len(X_train_final))
-        X_val = X_train_final[-val_size:]
-        y_val = y_rain[-val_size:]
-        y_pred = model.predict(X_val, verbose=0)
-        
-        r2 = r2_score(y_val.flatten(), y_pred.flatten())
-        nse = r2 # Nash-Sutcliffe Efficiency is equivalent to R2 for regression
-        
-        # Calculate Accuracy and F1 Score for Rainfall based on threshold (>0.01 threshold for rain)
-        y_val_class = (y_val.flatten() > 0.01).astype(int)
-        y_pred_class = (y_pred.flatten() > 0.01).astype(int)
-        try:
-            acc = accuracy_score(y_val_class, y_pred_class)
-            f1 = f1_score(y_val_class, y_pred_class, average='weighted', zero_division=0)
-        except Exception:
-            acc = 0.0
-            f1 = 0.0
-        
-        print(f"Rainfall {name} - R2 Score: {r2:.4f}, Accuracy: {acc:.4f}, F1: {f1:.4f}")
-        
-        db_metrics.append({
-            "module": "rainfall", "model_name": name, 
-            "rmse": float(np.sqrt(val_loss)), "mae": float(val_mae),
-            "r2": float(r2), "nse": float(nse),
-            "accuracy": float(acc), "f1": float(f1)
-        })
+    # Build raw sequences, then perform temporal split and fit scaler on TRAIN only
+    window_size = 30
+    horizon = 14
+    X_raw, y_raw, dates, cols = build_rainfall_sequences(raw_df, window_size=window_size, horizon=horizon)
+
+    if X_raw.shape[0] == 0:
+        print("Insufficient data to build rainfall sequences. Need more rows.")
+    else:
+        n_samples, _, n_features = X_raw.shape
+
+        # Temporal split: train on first 80% of samples, validate on last 20%
+        train_size = int(0.8 * n_samples)
+        if train_size < 1:
+            train_size = max(1, n_samples - 1)
+
+        # Fit scaler ONLY on training-time features (rows used by training windows)
+        # Determine maximum row index covered by training windows
+        # Last training window uses rows up to index train_size + window_size - 1
+        max_train_row = train_size + window_size
+        train_feature_rows = raw_df[cols].iloc[:max_train_row].values
+        scaler = MinMaxScaler()
+        scaler.fit(train_feature_rows)
+
+        # Transform all features using scaler, then recreate sliding windows
+        all_scaled = scaler.transform(raw_df[cols].values)
+        X_scaled, y_scaled = [], []
+        for i in range(n_samples):
+            X_scaled.append(all_scaled[i : i + window_size])
+            # target is precipitation column scaled
+            y_scaled.append(all_scaled[i + window_size : i + window_size + horizon, 0])
+        X_scaled = np.array(X_scaled)
+        y_scaled = np.array(y_scaled)
+
+        # Split into train/val
+        X_train = X_scaled[:train_size]
+        y_train = y_scaled[:train_size]
+        X_val = X_scaled[train_size:]
+        y_val = y_scaled[train_size:]
+
+        # Save scaler for inference (keeps same format expected by rainfall_service)
+        joblib.dump(scaler, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
+
+        inv_preds_list = []
+        for name, f_model in BUILD_FNS.items():
+            if name not in PREFERRED_MODELS:
+                continue
+
+            print(f"Training Rainfall - {name}")
+
+            X_train_final = X_train
+            X_val_final = X_val
+            y_train_final = y_train
+            y_val_final = y_val
+
+            # Optionally apply wavelet transform for wlstm (skipped for now)
+            if name == "wlstm":
+                X_train_final = apply_wavelet_transform(X_train)
+                X_val_final = apply_wavelet_transform(X_val)
+
+            model = f_model(X_train_final.shape[1:], horizon, classification=False)
+
+            # Training hyperparameters (consistent across models)
+            epochs = 120
+            batch_size = 32
+            callbacks = [
+                tf.keras.callbacks.EarlyStopping(
+                    monitor='val_loss',
+                    patience=12,
+                    restore_best_weights=True
+                ),
+                tf.keras.callbacks.ReduceLROnPlateau(
+                    monitor='val_loss',
+                    factor=0.5,
+                    patience=5,
+                    min_lr=1e-5,
+                    verbose=1
+                ),
+            ]
+
+            history = model.fit(
+                X_train_final, y_train_final,
+                epochs=epochs,
+                batch_size=batch_size,
+                validation_data=(X_val_final, y_val_final),
+                verbose=1,
+                shuffle=False,
+                callbacks=callbacks
+            )
+
+            # Save model
+            model_dir = os.path.join(models_dir, "rainfall")
+            os.makedirs(model_dir, exist_ok=True)
+            model.save(os.path.join(model_dir, f"{name}.keras"))
+
+            # Evaluate on validation set
+            y_pred = model.predict(X_val_final, verbose=0)
+            # Flatten to compute metrics across all horizon days
+            y_val_flat = y_val_final.flatten()
+            y_pred_flat = y_pred.flatten()
+
+            # Compute metrics in scaled space and then report after inverse scaling
+            # We'll invert using the scaler by reconstructing dummy arrays
+            # Create dummy arrays to inverse transform predicted precipitation values
+            dummy_pred = np.zeros((len(y_pred_flat), n_features))
+            dummy_true = np.zeros((len(y_val_flat), n_features))
+            dummy_pred[:, 0] = y_pred_flat
+            dummy_true[:, 0] = y_val_flat
+
+            inv_pred = scaler.inverse_transform(dummy_pred)[:, 0]
+            inv_true = scaler.inverse_transform(dummy_true)[:, 0]
+
+            rmse = float(np.sqrt(np.mean((inv_pred - inv_true) ** 2)))
+            mae = float(np.mean(np.abs(inv_pred - inv_true)))
+            mean_obs = np.mean(inv_true)
+            ss_res = np.sum((inv_pred - inv_true) ** 2)
+            ss_var = np.sum((inv_true - mean_obs) ** 2)
+            nse = 1 - (ss_res / ss_var) if ss_var > 0 else 0
+
+            print(f"Rainfall {name} - RMSE: {rmse:.4f}, MAE: {mae:.4f}, NSE: {nse:.4f}")
+
+            db_metrics.append({
+                "module": "rainfall", "model_name": name,
+                "rmse": rmse, "mae": mae,
+                "r2": float(r2_score(inv_true, inv_pred)), "nse": float(nse)
+            })
+            # store for optional ensemble
+            inv_preds_list.append(inv_pred)
+
+        # Optional ensemble: average predictions across all trained models
+        if len(inv_preds_list) > 0:
+            ensemble_pred = np.mean(np.stack(inv_preds_list, axis=0), axis=0)
+            ensemble_true = inv_true  # inv_true corresponds to validation ground truth
+            rmse_e = float(np.sqrt(np.mean((ensemble_pred - ensemble_true) ** 2)))
+            mae_e = float(np.mean(np.abs(ensemble_pred - ensemble_true)))
+            mean_obs_e = np.mean(ensemble_true)
+            ss_res_e = np.sum((ensemble_pred - ensemble_true) ** 2)
+            ss_var_e = np.sum((ensemble_true - mean_obs_e) ** 2)
+            nse_e = 1 - (ss_res_e / ss_var_e) if ss_var_e > 0 else 0
+
+            print(f"Rainfall ENSEMBLE - RMSE: {rmse_e:.4f}, MAE: {mae_e:.4f}, NSE: {nse_e:.4f}")
+            db_metrics.append({
+                "module": "rainfall", "model_name": "ensemble",
+                "rmse": rmse_e, "mae": mae_e,
+                "r2": float(r2_score(ensemble_true, ensemble_pred)), "nse": float(nse_e)
+            })
 
     # -------- TANK --------
     X_tank, y_tank, scaler_tank = build_tank_dataset(raw_df)

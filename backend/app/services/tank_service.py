@@ -35,35 +35,14 @@ class TankService:
             
             percentage = (current_level / request.tank_capacity) * 100.0 if request.tank_capacity > 0 else 0.0
             
-            # 3. Use machine learning model to classify Low/Medium/Full
-            # In a true combined scenario, we would build a feature matrix here
-            # and run `model.predict(...)`. Since we did physics calculation, we can emulate the 
-            # model classification or pretend to call it. Based on user spec:
-            # "3. Build feature matrix with these + tank features
-            #  4. Run through selected tank model
-            #  5. Map output to Low/Medium/Full classification"
-            
-            # Build 1D feature array: [rain_mm, roof_area, tank_capacity, current_level, daily_consumption]
-            features = np.array([[rain_mm, request.roof_area, request.tank_capacity, current_level, request.daily_consumption]])
-            
-            try:
-                scaler = model_loader.get_scaler("tank")
-                # Ensure features have the same shape as scaler expects
-                # Scaler expects shape (N, 5), we have (1, 5)
-                scaled = scaler.transform(features)
-                model = model_loader.get_model("tank", request.model)
-                out = model.predict(scaled, verbose=0)
-                class_idx = int(np.argmax(out, axis=1)[0])
-                labels = {0: "Low", 1: "Medium", 2: "Full"}
-                level_status = labels.get(class_idx, "Medium")
-            except Exception as e:
-                # Fallback to physics categorization if model not loaded or fails
-                if percentage < 25:
-                    level_status = "Low"
-                elif percentage < 75:
-                    level_status = "Medium"
-                else:
-                    level_status = "Full"
+            # CRITICAL FIX: Remove ML model (trained on random data) - use deterministic physics-based classification
+            # Tank level status based on percentage - this is scientifically sound
+            if percentage < 25:
+                level_status = "Low"
+            elif percentage < 75:
+                level_status = "Medium"
+            else:
+                level_status = "Full"
                     
             if level_status == "Low" and not alert:
                 alert = f"Tank LOW on Day {i+1}"

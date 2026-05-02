@@ -13,7 +13,7 @@ class ModelLoader:
         self.models: dict = {}
         self.scalers: dict = {}
         self.expected_models = [
-            "lstm", "gru", "bilstm", "cnn_lstm", "transformer", "stacked_lstm"
+            "lstm", "gru", "bilstm", "cnn_lstm", "wlstm", "stacked_lstm"
         ]
         self.modules = ["rainfall", "tank", "irrigation"]
 
