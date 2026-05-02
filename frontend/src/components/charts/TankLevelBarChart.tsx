@@ -47,6 +47,14 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 }
 
 export default function TankLevelBarChart({ data }: TankLevelBarChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="card p-12 flex flex-col items-center justify-center text-center">
+        <p className="text-sm text-text-muted dark:text-text-dark-muted">No tank prediction data</p>
+      </div>
+    )
+  }
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-4">

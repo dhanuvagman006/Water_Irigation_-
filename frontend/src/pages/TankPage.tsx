@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Play } from 'lucide-react'
+import { Play, AlertCircle } from 'lucide-react'
 import ModelSelector from '../components/shared/ModelSelector'
 import TankLevelBarChart from '../components/charts/TankLevelBarChart'
 import AlertCard from '../components/cards/AlertCard'
@@ -13,17 +13,34 @@ export default function TankPage() {
   const [model, setModel] = useState<ModelName>('LSTM')
   const [roofArea, setRoofArea] = useState(120)
   const [tankCapacity, setTankCapacity] = useState(5000)
-  const [currentLevel, setCurrentLevel] = useState(75)
+  const [currentLevelPercent, setCurrentLevelPercent] = useState(75)
   const [dailyConsumption, setDailyConsumption] = useState(200)
 
   const mutation = useTankPrediction()
   const predictions = (mutation.data ?? []) as TankPrediction[]
 
+  const currentLevelLiters = useMemo(
+    () => Math.round((currentLevelPercent / 100) * tankCapacity),
+    [currentLevelPercent, tankCapacity]
+  )
+
+  useEffect(() => {
+    if (!mutation.data && !mutation.isPending && !mutation.isError) {
+      mutation.mutate({
+        roof_area: roofArea,
+        tank_capacity: tankCapacity,
+        current_level: currentLevelLiters,
+        daily_consumption: dailyConsumption,
+        model,
+      })
+    }
+  }, [])
+
   const handlePredict = () => {
     mutation.mutate({
       roof_area: roofArea,
       tank_capacity: tankCapacity,
-      current_level: currentLevel,
+      current_level: currentLevelLiters,
       daily_consumption: dailyConsumption,
       model,
     })
@@ -32,7 +49,7 @@ export default function TankPage() {
   // Compute alerts
   const lowDay = predictions.findIndex((p) => p.level === 'Low')
   const daysRemaining = predictions.filter((p) => p.level !== 'Low').length
-  const avgRainCollection = Math.round(roofArea * 15 * 0.8) // rough estimate
+  const avgRainCollection = Math.round(roofArea * 15 * 0.8)
 
   return (
     <ErrorBoundary>
@@ -74,11 +91,11 @@ export default function TankPage() {
           <div>
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-text-muted dark:text-text-dark-muted font-medium">Current Level</span>
-              <span className="font-mono font-semibold text-text-primary dark:text-white">{currentLevel}%</span>
+              <span className="font-mono font-semibold text-text-primary dark:text-white">{currentLevelPercent}% ({currentLevelLiters}L)</span>
             </div>
             <input
-              type="range" min="0" max="100" value={currentLevel}
-              onChange={(e) => setCurrentLevel(Number(e.target.value))}
+              type="range" min="0" max="100" value={currentLevelPercent}
+              onChange={(e) => setCurrentLevelPercent(Number(e.target.value))}
               className="w-full accent-primary h-1.5"
             />
             {/* Visual gauge */}
@@ -86,19 +103,19 @@ export default function TankPage() {
               <motion.div
                 className="absolute bottom-0 w-full rounded-b-xl"
                 initial={{ height: 0 }}
-                animate={{ height: `${currentLevel}%` }}
+                animate={{ height: `${currentLevelPercent}%` }}
                 transition={{ duration: 0.6, ease: 'easeOut' }}
                 style={{
-                  background: currentLevel > 70
+                  background: currentLevelPercent > 70
                     ? 'linear-gradient(to top, #3B6D11, #1D9E75)'
-                    : currentLevel > 35
+                    : currentLevelPercent > 35
                     ? 'linear-gradient(to top, #BA7517, #FCD34D)'
                     : 'linear-gradient(to top, #E24B4A, #F87171)',
                 }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-lg font-bold font-mono text-white drop-shadow-md">
-                  {currentLevel}%
+                  {currentLevelPercent}%
                 </span>
               </div>
             </div>
@@ -130,7 +147,26 @@ export default function TankPage() {
 
         {/* Results */}
         <div className="space-y-6">
+          {/* Error state */}
+          {mutation.isError && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card p-6 flex flex-col items-center text-center"
+            >
+              <AlertCircle className="w-10 h-10 text-danger mb-3" />
+              <h3 className="text-base font-semibold text-text-primary dark:text-white mb-1">Prediction Failed</h3>
+              <p className="text-sm text-text-muted dark:text-text-dark-muted max-w-sm mb-4">
+                {(mutation.error as Error)?.message || 'Could not compute tank prediction.'}
+              </p>
+              <button onClick={handlePredict} className="btn-primary text-sm">
+                Retry
+              </button>
+            </motion.div>
+          )}
+
           {/* Large Gauge */}
+          {predictions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -143,12 +179,12 @@ export default function TankPage() {
                   <motion.div
                     className="h-full rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${currentLevel}%` }}
+                    animate={{ width: `${currentLevelPercent}%` }}
                     transition={{ duration: 0.8, ease: 'easeOut' }}
                     style={{
-                      background: currentLevel > 70
+                      background: currentLevelPercent > 70
                         ? 'linear-gradient(to right, #0F6E56, #1D9E75)'
-                        : currentLevel > 35
+                        : currentLevelPercent > 35
                         ? 'linear-gradient(to right, #BA7517, #FCD34D)'
                         : 'linear-gradient(to right, #E24B4A, #F87171)',
                     }}
@@ -156,7 +192,7 @@ export default function TankPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">0%</span>
-                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{currentLevel}%</span>
+                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{currentLevelPercent}%</span>
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">100%</span>
                 </div>
               </div>
@@ -164,14 +200,27 @@ export default function TankPage() {
                 <p className="text-xs text-text-muted dark:text-text-dark-muted">Capacity</p>
                 <p className="text-lg font-mono font-bold text-text-primary dark:text-white">{tankCapacity}L</p>
                 <p className="text-xs text-text-muted dark:text-text-dark-muted mt-1">
-                  Available: {Math.round(tankCapacity * currentLevel / 100)}L
+                  Available: {currentLevelLiters}L
                 </p>
               </div>
             </div>
           </motion.div>
+          )}
 
           {/* Bar chart */}
-          {mutation.isPending ? <ChartSkeleton /> : <TankLevelBarChart data={predictions} />}
+          {mutation.isPending ? <ChartSkeleton /> : predictions.length > 0 ? (
+            <TankLevelBarChart data={predictions} />
+          ) : (
+            <div className="card p-12 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                <Play className="w-6 h-6 text-text-muted" />
+              </div>
+              <h3 className="text-base font-semibold text-text-primary dark:text-white mb-1">No Predictions Yet</h3>
+              <p className="text-sm text-text-muted dark:text-text-dark-muted mb-4">
+                Click Predict or adjust parameters to see the 14-day forecast
+              </p>
+            </div>
+          )}
 
           {/* Alert cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
