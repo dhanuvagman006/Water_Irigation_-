@@ -9,7 +9,6 @@ from app.services.model_loader import ModelLoader
 
 class RainfallService:
     async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
-        # 1. Fetch last 30 days of NASA data
         df = await nasa_service.get_recent(days=30, db=db_session)
         if len(df) < 30:
             raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 30 days). Please trigger a data fetch.")
@@ -27,14 +26,12 @@ class RainfallService:
             model_used = f"{request.model} (recent-rainfall fallback)"
 
         actual_days = min(request.days, len(predicted_mm))
-        
-        # Clip to realistic bounds for tropical region [0, 200 mm]
+
         predicted_mm = np.clip(predicted_mm, 0.0, 200.0)
-        
-        # Confidence interval +/- 15%
+
         predictions = []
         start_date = request.start_date or (date.today() + timedelta(days=1))
-        
+
         for i in range(actual_days):
             val = float(predicted_mm[i])
             day_date = start_date + timedelta(days=i)
@@ -44,7 +41,7 @@ class RainfallService:
                 confidence_low=val * 0.85,
                 confidence_high=val * 1.15
             ))
-            
+
         return RainfallPredictResponse(
             predictions=predictions,
             model_used=model_used,
