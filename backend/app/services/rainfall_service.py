@@ -60,7 +60,7 @@ class RainfallService:
         raw_output = model.predict(X, verbose=0)
 
         if len(raw_output.shape) == 2:
-            output = raw_output[0]
+            output = raw_output[-1]
         else:
             output = raw_output.flatten()
 

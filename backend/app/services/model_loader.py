@@ -45,6 +45,7 @@ class ModelLoader:
 
             if module == "rainfall":
                 for name in self.expected_models:
+                    loaded_any = False
                     for suffix in HORIZON_SUFFIXES:
                         file_path = os.path.join(module_dir, f"{name}_{suffix}.keras")
                         key = f"{module}/{name}_{suffix}"
@@ -53,11 +54,33 @@ class ModelLoader:
                                 model = tf.keras.models.load_model(file_path)
                                 self.models[key] = model
                                 loaded_count += 1
+                                loaded_any = True
                                 logger.info("Loaded model: %s", key)
                             else:
                                 self.load_errors[key] = "model file not found"
                         except Exception as e:
                             self.load_errors[key] = str(e).splitlines()[0]
+                    if not loaded_any:
+                        base_path = os.path.join(module_dir, f"{name}.keras")
+                        if os.path.exists(base_path):
+                            try:
+                                model = tf.keras.models.load_model(base_path)
+                                for suffix in HORIZON_SUFFIXES:
+                                    key = f"{module}/{name}_{suffix}"
+                                    self.models[key] = model
+                                    loaded_count += 1
+                                    loaded_any = True
+                                    self.load_errors.pop(key, None)
+                                    logger.info("Loaded model (no horizon suffix): %s -> %s", name, key)
+                            except Exception as e:
+                                for suffix in HORIZON_SUFFIXES:
+                                    key = f"{module}/{name}_{suffix}"
+                                    self.load_errors[key] = str(e).splitlines()[0]
+                    if not loaded_any:
+                        for suffix in HORIZON_SUFFIXES:
+                            key = f"{module}/{name}_{suffix}"
+                            if key not in self.load_errors:
+                                self.load_errors[key] = "model file not found"
             else:
                 for name in self.expected_models:
                     file_path = os.path.join(module_dir, f"{name}.keras")

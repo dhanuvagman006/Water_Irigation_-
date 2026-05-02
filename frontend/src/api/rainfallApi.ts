@@ -4,13 +4,22 @@ import type { RainfallPrediction, ModelMetrics, ModelName } from '../types'
 
 import { normalizeModelName } from '../utils/formatters'
 
+function daysToHorizon(days: number): string {
+  if (days <= 3) return 'short'
+  if (days <= 10) return 'medium'
+  return 'long'
+}
+
 export function useRainfallPrediction(model: ModelName, startDate?: Date, days: number = 14) {
   return useQuery<RainfallPrediction[]>({
     queryKey: ['rainfall', model, startDate?.toISOString(), days],
     queryFn: async () => {
-      const payload: Record<string, string | number> = { model, days }
+      const payload: Record<string, string | number> = {
+        model,
+        days,
+        horizon: daysToHorizon(days),
+      }
       if (startDate) {
-        // format Date as YYYY-MM-DD
         payload.start_date = startDate.toISOString().split('T')[0]
       }
 

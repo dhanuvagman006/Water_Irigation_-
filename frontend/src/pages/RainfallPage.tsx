@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Play, Trophy } from 'lucide-react'
+import { Play, Trophy, AlertCircle, Calendar } from 'lucide-react'
 import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ReferenceLine, Legend,
@@ -83,8 +83,17 @@ export default function RainfallPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }, [startDate, endDate]);
 
-  const { data: rainfall, isLoading, isFetching, refetch } = useRainfallPrediction(model, startDate, days || 1)
+  const { data: rainfall, isLoading, isFetching, isError, error, refetch } = useRainfallPrediction(model, startDate, days || 1)
   const { data: metrics } = useRainfallMetrics()
+
+  const handleQuickSelect = (quickDays: number) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    setStartDate(today)
+    const end = new Date(today)
+    end.setDate(end.getDate() + quickDays)
+    setEndDate(end)
+  }
 
   const filteredMetrics = useMemo(() => {
     if (!metrics) return []
@@ -189,6 +198,23 @@ export default function RainfallPage() {
             onStartChange={setStartDate}
             onEndChange={setEndDate}
           />
+          <div className="flex items-center gap-1">
+            <Calendar className="w-4 h-4 text-text-muted dark:text-text-dark-muted" />
+            <span className="text-sm font-medium text-text-muted dark:text-text-dark-muted">Predict from today:</span>
+          </div>
+          {[1, 7, 15].map((d) => (
+            <button
+              key={d}
+              onClick={() => handleQuickSelect(d)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                days === d
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-text-primary dark:text-white hover:bg-primary/10'
+              }`}
+            >
+              {d}-Day
+            </button>
+          ))}
           <button onClick={() => refetch()} disabled={isFetching} className="btn-primary ml-auto flex items-center gap-2">
             {isFetching ? (
               <>
@@ -204,8 +230,24 @@ export default function RainfallPage() {
           </button>
         </motion.div>
 
-        {/* Main chart */}
-        {(isLoading || isFetching) ? (
+        {/* Error state */}
+        {isError ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="card p-8 flex flex-col items-center justify-center text-center"
+          >
+            <AlertCircle className="w-12 h-12 text-danger mb-4" />
+            <h3 className="text-lg font-semibold text-text-primary dark:text-white mb-2">Prediction Failed</h3>
+            <p className="text-sm text-text-muted dark:text-text-dark-muted max-w-md mb-4">
+              {error?.message || 'Could not fetch rainfall prediction. Make sure the backend is running and has weather data.'}
+            </p>
+            <button onClick={() => refetch()} className="btn-primary flex items-center gap-2">
+              <Play className="w-4 h-4" />
+              Retry
+            </button>
+          </motion.div>
+        ) : (isLoading || isFetching) ? (
           <ChartSkeleton />
         ) : (
           <motion.div

@@ -1,5 +1,5 @@
-import { useMemo, useEffect } from 'react'
-import { CloudRain, Database, Sprout, CalendarClock } from 'lucide-react'
+import { useMemo, useEffect, useState } from 'react'
+import { CloudRain, Database, Sprout, CalendarClock, AlertCircle } from 'lucide-react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -41,7 +41,13 @@ function DecisionBadge({ decision }: { decision: string }) {
 
 export default function Dashboard() {
   const { selectedModel } = useAppStore()
-  const { data: rainfallData, isLoading: rainfallLoading } = useRainfallPrediction(selectedModel)
+  const today = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
+  const { data: rainfallData, isLoading: rainfallLoading, isError, error, refetch } = useRainfallPrediction(selectedModel, today, 14)
   const tankMutation = useTankPrediction()
   const irrigationMutation = useIrrigationPrediction()
 
@@ -141,6 +147,23 @@ export default function Dashboard() {
   return (
     <ErrorBoundary>
       <div className="space-y-6">
+        {/* Error banner */}
+        {isError && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-4 flex items-center gap-3 bg-danger/5 border border-danger/20"
+          >
+            <AlertCircle className="w-5 h-5 text-danger flex-shrink-0" />
+            <p className="text-sm text-text-primary dark:text-white flex-1">
+              Failed to load prediction data: {(error as Error)?.message || 'Unknown error'}
+            </p>
+            <button onClick={() => refetch()} className="btn-primary text-xs py-1 px-3">
+              Retry
+            </button>
+          </motion.div>
+        )}
+
         {/* Stat cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
