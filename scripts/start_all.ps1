@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $rootDir "backend"
 $frontendDir = Join-Path $rootDir "frontend"
-$pythonExe = Join-Path $rootDir "venv\Scripts\python.exe"
+$pythonExe = Join-Path $rootDir "venv\Scripts\pythonw.exe"
 
 function Stop-ProcessTree {
     param([int]$ProcessId)
