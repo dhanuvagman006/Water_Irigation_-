@@ -7,8 +7,8 @@ echo.
 
 
 echo [1/3] Activating Virtual Environment and Training Model...
-call venv\Scripts\activate
-python backend\app\ml\train.py
+@REM call venv\Scripts\activate
+@REM python backend\app\ml\train.py
 
 echo [2/3] Starting Backend Server...
 start /B "" cmd /c "call venv\Scripts\activate && cd backend && pip install -r requirements.txt && python -m uvicorn app.main:app --reload"
