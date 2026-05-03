@@ -35,9 +35,9 @@ fi
 echo "[1/3] Activating Virtual Environment and Training Model..."
 $PYTHON_BIN -m pip install --upgrade pip >/dev/null
 $PYTHON_BIN -m pip install -r "$ROOT_DIR/backend/requirements.txt"
-$PYTHON_BIN "$ROOT_DIR/backend/app/ml/train.py"
+# $PYTHON_BIN "$ROOT_DIR/backend/app/ml/train.py"
 
-echo "[2/3] Starting Backend Server..."
+echo "[2/3] Starting Backend Server on port 8001..."
 backend_pid=""
 cleanup() {
 	if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
@@ -48,7 +48,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-(cd "$ROOT_DIR/backend" && $PYTHON_BIN -m uvicorn app.main:app --reload) &
+(cd "$ROOT_DIR/backend" && $PYTHON_BIN -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload) &
 backend_pid=$!
 
 echo "[3/3] Installing Dependencies and Starting Frontend Server..."

@@ -316,6 +316,9 @@ async def run_training(dataset_path: str):
         raw_df["solar_radiation"] = raw_df["ALLSKY_SFC_SW_DWN"]
         raw_df["pressure"] = raw_df["PS"]
         raw_df.rename(columns={"Date": "date"}, inplace=True)
+    elif "precipitation_mm" in raw_df.columns:
+        print("Detected modern format. All required columns present.")
+        raw_df.rename(columns={"Date": "date"}, inplace=True)
     else:
         print("Detected legacy format. Synthesizing missing features...")
         raw_df["precipitation_mm"] = raw_df["Rainfall(mm)"]
@@ -412,11 +415,22 @@ async def run_training(dataset_path: str):
                 train_ds = make_dataset(X_train_final, y_train, batch_size=batch_size, shuffle=True)
                 val_ds = make_dataset(X_val_final, y_val, batch_size=batch_size)
 
+                model_checkpoint_path = os.path.join(models_dir, "rainfall", f"{name}_{h_suffix}_best.keras")
+                os.makedirs(os.path.dirname(model_checkpoint_path), exist_ok=True)
+                
                 callbacks = [
                     tf.keras.callbacks.EarlyStopping(
                         monitor='val_loss',
-                        patience=10,
-                        restore_best_weights=True
+                        patience=8,
+                        restore_best_weights=True,
+                        min_delta=1e-4,
+                        verbose=1
+                    ),
+                    tf.keras.callbacks.ModelCheckpoint(
+                        filepath=model_checkpoint_path,
+                        monitor='val_loss',
+                        save_best_only=True,
+                        verbose=0
                     ),
                     tf.keras.callbacks.ReduceLROnPlateau(
                         monitor='val_loss',
@@ -521,13 +535,28 @@ async def run_training(dataset_path: str):
         train_ds = make_dataset(X_tr, y_tr, batch_size=64, shuffle=True)
         val_ds = make_dataset(X_val, y_val, batch_size=64)
 
+        tank_checkpoint_path = os.path.join(models_dir, "tank", f"{name}_best.keras")
+        os.makedirs(os.path.dirname(tank_checkpoint_path), exist_ok=True)
+        
         history = model.fit(
             train_ds,
             validation_data=val_ds,
             epochs=50,
             verbose=1,
             callbacks=[
-                tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+                tf.keras.callbacks.EarlyStopping(
+                    monitor='val_loss',
+                    patience=7,
+                    restore_best_weights=True,
+                    min_delta=1e-4,
+                    verbose=1
+                ),
+                tf.keras.callbacks.ModelCheckpoint(
+                    filepath=tank_checkpoint_path,
+                    monitor='val_loss',
+                    save_best_only=True,
+                    verbose=0
+                )
             ]
         )
         model.save(os.path.join(models_dir, "tank", f"{name}.keras"))
@@ -563,13 +592,28 @@ async def run_training(dataset_path: str):
         train_ds = make_dataset(X_tr, y_tr, batch_size=64, shuffle=True)
         val_ds = make_dataset(X_val, y_val, batch_size=64)
 
+        irr_checkpoint_path = os.path.join(models_dir, "irrigation", f"{name}_best.keras")
+        os.makedirs(os.path.dirname(irr_checkpoint_path), exist_ok=True)
+        
         history = model.fit(
             train_ds,
             validation_data=val_ds,
             epochs=50,
             verbose=1,
             callbacks=[
-                tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+                tf.keras.callbacks.EarlyStopping(
+                    monitor='val_loss',
+                    patience=7,
+                    restore_best_weights=True,
+                    min_delta=1e-4,
+                    verbose=1
+                ),
+                tf.keras.callbacks.ModelCheckpoint(
+                    filepath=irr_checkpoint_path,
+                    monitor='val_loss',
+                    save_best_only=True,
+                    verbose=0
+                )
             ]
         )
         model.save(os.path.join(models_dir, "irrigation", f"{name}.keras"))
@@ -601,5 +645,5 @@ if __name__ == "__main__":
         script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         dataset_path = os.path.join(script_dir, "NASA_WEATHER_FINAL.csv")
         if not os.path.exists(dataset_path):
-            dataset_path = os.path.join(script_dir, "Dakshina_Kannada_NASA_POWER_1981_2024.csv")
+            dataset_path = os.path.join(script_dir, "Dakshina_Kannada_Weather_2000_2024.csv")
     asyncio.run(run_training(dataset_path))
