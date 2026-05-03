@@ -26,8 +26,6 @@ def get_moisture_factor(soil_moisture: float) -> float:
 
 class IrrigationService:
     async def predict(self, request: IrrigationPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> IrrigationPredictResponse:
-        # 1. Base water need is already in BASE_WATER_REQUIREMENTS
-        # 2. Fetch rainfall predictions for 14 days
         rain_req = RainfallPredictRequest(model="LSTM", days=14)
         rain_resp = await rainfall_service.predict(rain_req, model_loader, db_session)
         rain_preds = [p.predicted_mm for p in rain_resp.predictions]
@@ -45,21 +43,16 @@ class IrrigationService:
             for i in range(14):
                 rain_today = rain_preds[i]
                 
-                # CRITICAL FIX: Account for rainfall in water need calculation
-                # Assume roof_area = 100 m² for rain-to-water conversion
-                # 1 mm rainfall × area × efficiency = liters per plant
-                roof_area = getattr(request, 'roof_area', 100)  # default 100 m²
-                efficiency = 0.8  # 20% loss in collection/infiltration
+                roof_area = getattr(request, 'roof_area', 100)
+                efficiency = 0.8
                 rainfall_contribution = (rain_today * roof_area * efficiency) / num_plants if num_plants > 0 else 0
                 
                 moisture_factor = get_moisture_factor(current_moisture)
                 moisture_adjusted_need = base_need * moisture_factor
                 irrigation_needed = max(0, moisture_adjusted_need - rainfall_contribution)
                 
-                # Check soil saturation - do NOT irrigate if already wet
                 should_skip_saturation = current_moisture >= SATURATION_THRESHOLD
                 
-                # Determine decision based on irrigation need and soil state
                 if should_skip_saturation:
                     decision = "No Irrigate"
                     liters = 0.0
@@ -79,11 +72,9 @@ class IrrigationService:
 
                 total_water_liters[crop] += liters
                 
-                # Update soil moisture based on rainfall and irrigation
-                # Simplified physics: infiltration from rain + irrigation, evapotranspiration loss
-                rainfall_infiltration = (rain_today * 0.15) / 100  # normalized to 0-1 scale
-                irrigation_infiltration = (liters / 1000) * 0.3 / 100 if liters > 0 else 0  # some irrigation water infiltrates
-                evapotranspiration = 0.15 / 100  # daily ET loss normalized
+                rainfall_infiltration = (rain_today * 0.15) / 100
+                irrigation_infiltration = (liters / 1000) * 0.3 / 100 if liters > 0 else 0
+                evapotranspiration = 0.15 / 100
                 
                 current_moisture += rainfall_infiltration + irrigation_infiltration - evapotranspiration
                 current_moisture = float(np.clip(current_moisture, 0.0, 1.0))
@@ -96,10 +87,10 @@ class IrrigationService:
                     reason=reason,
                     soil_moisture_forecast=round(current_moisture, 4)
                 ))
-                
+            
         return IrrigationPredictResponse(
             plan=plan,
-            total_water_liters={crop: round(liters, 2) for crop, liters in total_water_liters.items()},
+            total_water_liters={crop: round(total, 2) for crop, total in total_water_liters.items()},
             model_used=request.model
         )
 
