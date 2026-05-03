@@ -15,8 +15,7 @@ htmlcov/
 # Environment files (keep examples)
 
 
-venv
-/venv/
+.venv
 # Local databases
 # Node / frontend (frontend has its own .gitignore; this is a safety net)
 node_modules/

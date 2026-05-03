@@ -226,7 +226,7 @@ if __name__ == "__main__":
     print("Generating realistic Dakshina Kannada weather dataset (2000-2024)...")
     df = generate_dakshina_kannada_dataset(2000, 2024)
     
-    output_path = r"D:\Water_Irigation_-\Dakshina_Kannada_Weather_2000_2024.csv"
+    output_path = r".\Dakshina_Kannada_Weather_2000_2024.csv"
     df.to_csv(output_path, index=False)
     
     print(f"\nDataset saved to: {output_path}")

@@ -20,7 +20,7 @@ print(f"TensorFlow version: {tf.__version__}")
 print(f"Using {os.cpu_count()} CPU cores")
 
 # Load dataset
-dataset_path = "D:/Water_Irigation_-/Dakshina_Kannada_Weather_2000_2024.csv"
+dataset_path = "./Dakshina_Kannada_Weather_2000_2024.csv"
 print(f"\nLoading dataset: {dataset_path}")
 raw_df = pd.read_csv(dataset_path)
 print(f"Dataset shape: {raw_df.shape}")
@@ -82,7 +82,7 @@ y_train, y_val = y[:train_size], y[train_size:]
 print(f"Train: {X_train.shape}, Val: {X_val.shape}")
 
 # Save scaler
-scalers_dir = "D:/Water_Irigation_-/backend/scalers"
+scalers_dir = "./backend/scalers"
 os.makedirs(scalers_dir, exist_ok=True)
 joblib.dump(scaler, os.path.join(scalers_dir, "rainfall_scaler.pkl"))
 print(f"Scaler saved to {scalers_dir}/rainfall_scaler.pkl")
@@ -198,7 +198,7 @@ def make_dataset(X, y, batch_size=32, shuffle=False):
 # Train for each horizon
 HORIZONS = {"short": 1, "medium": 7, "long": 15}
 
-models_dir = "D:/Water_Irigation_-/backend/models"
+models_dir = "./backend/models"
 
 for h_name, horizon in HORIZONS.items():
     h_suffix = f"{horizon}d"
