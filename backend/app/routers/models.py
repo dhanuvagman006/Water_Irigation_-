@@ -15,9 +15,15 @@ async def list_models(loader: ModelLoader = Depends(get_model_loader)):
     result = {"rainfall": [], "tank": [], "irrigation": []}
     for m in loader.expected_models:
         for mod in result.keys():
-            key = f"{mod}/{m}"
-            status = "loaded" if key in loader.models else "failed"
-            result[mod].append({"name": m, "status": status})
+            if mod == "rainfall":
+                for horizon in ["1d", "7d", "15d"]:
+                    key = f"{mod}/{m}_{horizon}"
+                    status = "loaded" if key in loader.models else "failed"
+                    result[mod].append({"name": m, "horizon": horizon, "status": status})
+            else:
+                key = f"{mod}/{m}"
+                status = "loaded" if key in loader.models else "failed"
+                result[mod].append({"name": m, "status": status})
     return result
 
 @router.get("/metrics/{module}", response_model=List[ModelMetricsResponse])

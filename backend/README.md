@@ -30,7 +30,7 @@ alembic upgrade head
 
 4. **Launch Server**:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ---
@@ -41,18 +41,18 @@ API expects requests to include an `X-API-Key` header matching `API_KEY` in `bac
 
 ### Health Check (No Auth)
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8001/health
 ```
 
 ### Models Readiness
 ```bash
-curl -X GET http://localhost:8000/api/models/list \
+curl -X GET http://localhost:8001/api/models/list \
      -H "X-API-Key: dev_super_secret_key_123"
 ```
 
 ### 1) RAINFALL
 ```bash
-curl -X POST http://localhost:8000/api/rainfall/predict \
+curl -X POST http://localhost:8001/api/rainfall/predict \
      -H "Content-Type: application/json" \
      -H "X-API-Key: dev_super_secret_key_123" \
      -d '{"model": "LSTM", "days": 14}'
@@ -60,7 +60,7 @@ curl -X POST http://localhost:8000/api/rainfall/predict \
 
 ### 2) TANK
 ```bash
-curl -X POST http://localhost:8000/api/tank/predict \
+curl -X POST http://localhost:8001/api/tank/predict \
      -H "Content-Type: application/json" \
      -H "X-API-Key: dev_super_secret_key_123" \
      -d '{
@@ -74,7 +74,7 @@ curl -X POST http://localhost:8000/api/tank/predict \
 
 ### 3) IRRIGATION
 ```bash
-curl -X POST http://localhost:8000/api/irrigation/predict \
+curl -X POST http://localhost:8001/api/irrigation/predict \
      -H "Content-Type: application/json" \
      -H "X-API-Key: dev_super_secret_key_123" \
      -d '{
@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/irrigation/predict \
 
 ### Export Output
 ```bash
-curl -X GET http://localhost:8000/api/irrigation/schedule/export \
+curl -X GET http://localhost:8001/api/irrigation/schedule/export \
      -H "X-API-Key: dev_super_secret_key_123" \
      --output schedule.csv
 ```

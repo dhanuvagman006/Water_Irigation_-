@@ -8,7 +8,7 @@ import time
 import structlog
 from app.config import settings
 from app.database.base import Base, engine
-from app.services.model_loader import model_loader
+from app.services.model_loader import model_loader, HORIZON_SUFFIXES
 from app.scheduler.jobs import scheduler
 from app.routers import rainfall, tank, irrigation, models, data
 from app.database.models import RainfallRecord, TankRecord, IrrigationRecord, ModelMetricsRecord, NASADataRecord
@@ -164,7 +164,9 @@ async def health_check():
 async def health_ready():
     # Readiness check
     loaded_models_count = len(model_loader.models)
-    expected_models_count = 18
+    expected_models_count = len(model_loader.expected_models) * (
+        (len(model_loader.modules) - 1) + len(HORIZON_SUFFIXES)
+    )
     # Simplified checks for demo:
     return {
         "status": "ready" if loaded_models_count > 0 else "not_ready_partially",

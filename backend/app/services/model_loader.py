@@ -16,7 +16,7 @@ class ModelLoader:
         self.load_errors: dict[str, str] = {}
         self.expected_models = [
             "lstm", "gru", "bilstm", "cnn_lstm", "simplernn",
-            "lstm_attention", "wlstm", "transformer"
+            "lstm_attention", "wlstm", "transformer", "stacked_lstm"
         ]
         self.modules = ["rainfall", "tank", "irrigation"]
 

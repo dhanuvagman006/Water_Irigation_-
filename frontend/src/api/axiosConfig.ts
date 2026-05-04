@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import toast from 'react-hot-toast'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000/api'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api'
 const API_KEY = (import.meta.env.VITE_API_KEY as string | undefined) ?? ''
 
 const api = axios.create({

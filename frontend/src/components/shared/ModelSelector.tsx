@@ -1,7 +1,17 @@
 import type { ModelName } from '../../types'
 import useAppStore from '../../store/useAppStore'
 
-const models: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'StackedLSTM']
+const models: ModelName[] = [
+  'LSTM',
+  'GRU',
+  'BiLSTM',
+  'CNN-LSTM',
+  'WLSTM',
+  'StackedLSTM',
+  'SimpleRNN',
+  'LSTM+Attention',
+  'Transformer',
+]
 
 interface ModelSelectorProps {
   value?: ModelName
