@@ -76,11 +76,14 @@ class NASAService:
         logger.info(f"Fetched and upserted {records_upserted} records from NASA POWER API")
         return {"records_fetched": records_upserted, "start": start, "end": end}
 
-    async def get_recent(self, days: int, db: AsyncSession) -> pd.DataFrame:
+    async def get_recent(self, days: int, db: AsyncSession, end_date: date = None) -> pd.DataFrame:
         # NOTE: NASA POWER daily data can lag by 1-2 days depending on timezone/update schedule.
         # For model inference we need the most recent `days` observations, not strictly the last
         # `days` calendar days ending today.
-        stmt = select(NASADataRecord).order_by(NASADataRecord.date.desc()).limit(days)
+        stmt = select(NASADataRecord)
+        if end_date:
+            stmt = stmt.where(NASADataRecord.date <= end_date)
+        stmt = stmt.order_by(NASADataRecord.date.desc()).limit(days)
         result = await db.execute(stmt)
         # Reverse back to ascending chronological order for feature engineering.
         records = list(result.scalars().all())[::-1]

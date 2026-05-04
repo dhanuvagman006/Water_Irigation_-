@@ -14,11 +14,13 @@ HORIZON_MAP = {"short": 1, "medium": 7, "long": 15}
 
 class RainfallService:
     async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
-        df = await nasa_service.get_recent(days=30, db=db_session)
-        if len(df) < 30:
-            raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 30 days). Please trigger a data fetch.")
+        context_end = (request.start_date or date.today()) - timedelta(days=1)
+        df = await nasa_service.get_recent(days=60, db=db_session, end_date=context_end)
+        if len(df) < 45:
+            raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 45 days). Please trigger a data fetch.")
 
-        df = await self._inject_seasonal_context(df, db_session)
+        prediction_date = request.start_date or (date.today() + timedelta(days=1))
+        df = await self._inject_seasonal_context(df, db_session, prediction_date)
 
         try:
             predicted_mm, model_used = self._predict_with_model(request, model_loader, df)
@@ -54,12 +56,11 @@ class RainfallService:
             generated_at=datetime.utcnow()
         )
 
-    async def _inject_seasonal_context(self, df, db_session: AsyncSession):
+    async def _inject_seasonal_context(self, df, db_session: AsyncSession, target_date: date):
         df = df.copy()
         if "date" in df.columns:
-            latest_date = pd.to_datetime(df["date"].max()).date()
-            current_month = latest_date.month
-            current_doy = latest_date.timetuple().tm_yday
+            current_month = target_date.month
+            current_doy = target_date.timetuple().tm_yday
 
             stmt = select(NASADataRecord).order_by(NASADataRecord.date.desc()).limit(3650)
             result = await db_session.execute(stmt)
@@ -138,26 +139,25 @@ class RainfallService:
 
         predicted = scaler.inverse_transform(dummy)[:, 0]
 
-        if "date" in df.columns:
-            latest_date = pd.to_datetime(df["date"].max()).date()
+        # Apply seasonal scaling based on the requested prediction month
+        prediction_date = request.start_date or (date.today() + timedelta(days=1))
+        month = prediction_date.month
+        if month in [12, 1, 2]:
+            seasonal_factor = 0.2
+        elif month in [3, 4]:
+            seasonal_factor = 0.5
+        elif month == 5:
+            seasonal_factor = 0.8
+        elif month in [6, 7, 8]:
+            seasonal_factor = 1.5
+        elif month == 9:
+            seasonal_factor = 1.2
+        elif month == 10:
+            seasonal_factor = 0.9
+        else:
+            seasonal_factor = 0.4
 
-            month = latest_date.month
-            if month in [12, 1, 2]:
-                seasonal_factor = 0.2
-            elif month in [3, 4]:
-                seasonal_factor = 0.5
-            elif month == 5:
-                seasonal_factor = 0.8
-            elif month in [6, 7, 8]:
-                seasonal_factor = 1.5
-            elif month == 9:
-                seasonal_factor = 1.2
-            elif month == 10:
-                seasonal_factor = 0.9
-            else:
-                seasonal_factor = 0.4
-
-            predicted = predicted * seasonal_factor
+        predicted = predicted * seasonal_factor
 
         return predicted, f"{request.model} ({horizon})"
 
@@ -167,25 +167,23 @@ class RainfallService:
         weekly_pattern = rainfall[-7:] if len(rainfall) >= 7 else recent
         baseline = float(np.mean(recent)) if len(recent) else 0.0
 
-        if "date" in df.columns:
-            latest_date = pd.to_datetime(df["date"].max()).date()
-            month = latest_date.month
-            if month in [12, 1, 2]:
-                seasonal_factor = 0.2
-            elif month in [3, 4]:
-                seasonal_factor = 0.5
-            elif month == 5:
-                seasonal_factor = 0.8
-            elif month in [6, 7, 8]:
-                seasonal_factor = 1.5
-            elif month == 9:
-                seasonal_factor = 1.2
-            elif month == 10:
-                seasonal_factor = 0.9
-            else:
-                seasonal_factor = 0.4
+        # Apply seasonal scaling based on the requested prediction month
+        prediction_date = request.start_date or (date.today() + timedelta(days=1))
+        month = prediction_date.month
+        if month in [12, 1, 2]:
+            seasonal_factor = 0.2
+        elif month in [3, 4]:
+            seasonal_factor = 0.5
+        elif month == 5:
+            seasonal_factor = 0.8
+        elif month in [6, 7, 8]:
+            seasonal_factor = 1.5
+        elif month == 9:
+            seasonal_factor = 1.2
+        elif month == 10:
+            seasonal_factor = 0.9
         else:
-            seasonal_factor = 1.0
+            seasonal_factor = 0.4
 
         forecast = []
         for i in range(days):

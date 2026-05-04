@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     ]
     REDIS_URL: str = ""
     LOG_LEVEL: str = "INFO"
-    LOAD_MODELS: bool = False
+    LOAD_MODELS: bool = True
 
     model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore")
 

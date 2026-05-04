@@ -21,21 +21,29 @@ else
 	exit 1
 fi
 
+if ! command -v npm >/dev/null 2>&1; then
+	echo "[!] npm not found on PATH. Please install Node.js."
+	exit 1
+fi
+
 VENV_DIR="$ROOT_DIR/.venv"
 if [[ -f "$VENV_DIR/bin/activate" ]]; then
 	# shellcheck disable=SC1091
 	source "$VENV_DIR/bin/activate"
+elif [[ -f "$VENV_DIR/Scripts/activate" ]]; then
+	# shellcheck disable=SC1091
+	source "$VENV_DIR/Scripts/activate"
 else
 	echo "[!] Virtual environment not found at: $VENV_DIR"
-	echo "    Create it with: python3 -m venv .venv"
+	echo "    Create it with: python -m venv .venv"
 	echo "    Then re-run this script."
 	exit 1
 fi
 
 echo "[1/3] Activating Virtual Environment and Training Model..."
-$PYTHON_BIN -m pip install --upgrade pip >/dev/null
-$PYTHON_BIN -m pip install -r "$ROOT_DIR/backend/requirements.txt"
-# $PYTHON_BIN "$ROOT_DIR/backend/app/ml/train.py"
+python -m pip install --upgrade pip >/dev/null
+python -m pip install -r "$ROOT_DIR/backend/requirements.txt"
+# python "$ROOT_DIR/backend/app/ml/train.py"
 
 echo "[2/3] Starting Backend Server on port 8001..."
 backend_pid=""
@@ -48,10 +56,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-(cd "$ROOT_DIR/backend" && $PYTHON_BIN -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload) &
+cd "$ROOT_DIR/backend"
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload &
 backend_pid=$!
+cd "$ROOT_DIR"
 
 echo "[3/3] Installing Dependencies and Starting Frontend Server..."
 cd "$ROOT_DIR/frontend"
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1

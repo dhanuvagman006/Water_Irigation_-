@@ -23,22 +23,35 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Check and pre-fill NASA data if empty
+    # Pre-fill database from local CSV if empty
     from app.database.base import AsyncSessionLocal
     from sqlalchemy import select, func
-    from datetime import date, timedelta
-    from app.services.nasa_service import nasa_service
+    import pandas as pd
+    import os
     
     async with AsyncSessionLocal() as session:
         count = await session.scalar(select(func.count(NASADataRecord.id)))
-        if count is None or count < 30:
-            logger.info(f"Insufficient NASA data found ({count} records). Fetching past 30 days...")
-            start_d = date.today() - timedelta(days=30)
-            end_d = date.today()
-            try:
-                await nasa_service.fetch(start_d, end_d, session)
-            except Exception as e:
-                logger.error(f"Failed to fetch initial NASA data: {e}")
+        if count is None or count == 0:
+            logger.info("Database empty. Loading context from local CSV...")
+            csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Dakshina_Kannada_Weather_2000_2024.csv")
+            if os.path.exists(csv_path):
+                df_local = pd.read_csv(csv_path)
+                for _, row in df_local.iterrows():
+                    record = NASADataRecord(
+                        date=pd.to_datetime(row["Date"]).date(),
+                        precipitation_mm=row["precipitation_mm"],
+                        temp_max=row["temp_max"],
+                        temp_min=row["temp_min"],
+                        humidity=row["humidity"],
+                        wind_speed=row["wind_speed"],
+                        solar_radiation=row["solar_radiation"],
+                        pressure=row["pressure"]
+                    )
+                    session.add(record)
+                await session.commit()
+                logger.info("Local context loaded successfully.")
+            else:
+                logger.error(f"Local CSV not found at {csv_path}")
     
     logger.info("Loading models...")
     await model_loader.load_all()
