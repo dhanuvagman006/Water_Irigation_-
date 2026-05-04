@@ -1,7 +1,26 @@
 import axios, { AxiosError } from 'axios'
 import toast from 'react-hot-toast'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api'
+const RAW_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+
+function resolveApiBaseUrl(): string {
+  if (!RAW_API_BASE_URL) return '/api'
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1'
+    const isLocalBase = RAW_API_BASE_URL.startsWith('http://localhost:8001') ||
+      RAW_API_BASE_URL.startsWith('http://127.0.0.1:8001')
+
+    if (!isLocalHost && isLocalBase) {
+      return '/api'
+    }
+  }
+
+  return RAW_API_BASE_URL
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 const API_KEY = (import.meta.env.VITE_API_KEY as string | undefined) ?? ''
 
 const api = axios.create({
