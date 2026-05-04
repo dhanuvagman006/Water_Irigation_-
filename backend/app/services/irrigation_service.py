@@ -1,12 +1,13 @@
 import numpy as np
 from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from fastapi import HTTPException
 from app.schemas.irrigation import IrrigationPredictRequest, IrrigationPredictResponse, IrrigationDayPlan
 from app.schemas.rainfall import RainfallPredictRequest
 from app.services.rainfall_service import rainfall_service
 from app.services.model_loader import ModelLoader
-from app.services.nasa_service import nasa_service
+from app.database.models import NASADataRecord
 from app.config import settings
 
 BASE_WATER_REQUIREMENTS = {
@@ -51,9 +52,11 @@ class IrrigationService:
 
         temp_max = 30.0
         try:
-            recent_df = await nasa_service.get_recent(days=30, db=db_session)
-            if not recent_df.empty and "temp_max" in recent_df.columns:
-                temp_max = float(recent_df["temp_max"].iloc[-1])
+            stmt = select(NASADataRecord).order_by(NASADataRecord.date.desc()).limit(30)
+            result = await db_session.execute(stmt)
+            records = list(result.scalars().all())
+            if records and records[0].temp_max is not None:
+                temp_max = float(records[0].temp_max)
         except Exception:
             temp_max = 30.0
 

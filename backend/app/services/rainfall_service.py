@@ -2,10 +2,9 @@ import numpy as np
 import pandas as pd
 from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from fastapi import HTTPException
 from app.schemas.rainfall import RainfallPredictRequest, RainfallPredictResponse, DayPrediction
-from app.services.nasa_service import nasa_service
 from app.services.preprocessor import preprocessor
 from app.services.model_loader import ModelLoader
 from app.database.models import NASADataRecord
@@ -15,9 +14,7 @@ HORIZON_MAP = {"short": 1, "medium": 7, "long": 15}
 class RainfallService:
     async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
         context_end = (request.start_date or date.today()) - timedelta(days=1)
-        df = await nasa_service.get_recent(days=60, db=db_session, end_date=context_end)
-        if len(df) < 45:
-            raise HTTPException(status_code=422, detail="Insufficient NASA data (less than 45 days). Please trigger a data fetch.")
+        df = await self._get_local_data(db_session, end_date=context_end, days=60)
 
         prediction_date = request.start_date or (date.today() + timedelta(days=1))
         df = await self._inject_seasonal_context(df, db_session, prediction_date)
@@ -55,6 +52,40 @@ class RainfallService:
             model_used=model_used,
             generated_at=datetime.utcnow()
         )
+
+    async def _get_local_data(self, db_session: AsyncSession, end_date: date = None, days: int = 60) -> pd.DataFrame:
+        """Fetch weather data from local database (populated from CSV)"""
+        if end_date is None:
+            end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        stmt = select(NASADataRecord).where(
+            NASADataRecord.date >= start_date,
+            NASADataRecord.date <= end_date
+        ).order_by(NASADataRecord.date)
+
+        result = await db_session.execute(stmt)
+        records = list(result.scalars().all())
+
+        if not records:
+            return pd.DataFrame()
+
+        data = []
+        for r in records:
+            data.append({
+                "date": r.date,
+                "precipitation_mm": r.precipitation_mm,
+                "temp_max": r.temp_max,
+                "temp_min": r.temp_min,
+                "humidity": r.humidity,
+                "wind_speed": r.wind_speed,
+                "solar_radiation": r.solar_radiation,
+                "pressure": r.pressure
+            })
+
+        df = pd.DataFrame(data)
+        df["date"] = pd.to_datetime(df["date"])
+        return df
 
     async def _inject_seasonal_context(self, df, db_session: AsyncSession, target_date: date):
         df = df.copy()
@@ -139,7 +170,6 @@ class RainfallService:
 
         predicted = scaler.inverse_transform(dummy)[:, 0]
 
-        # Apply seasonal scaling based on the requested prediction month
         prediction_date = request.start_date or (date.today() + timedelta(days=1))
         month = prediction_date.month
         if month in [12, 1, 2]:
@@ -167,8 +197,7 @@ class RainfallService:
         weekly_pattern = rainfall[-7:] if len(rainfall) >= 7 else recent
         baseline = float(np.mean(recent)) if len(recent) else 0.0
 
-        # Apply seasonal scaling based on the requested prediction month
-        prediction_date = request.start_date or (date.today() + timedelta(days=1))
+        prediction_date = (date.today() + timedelta(days=1))
         month = prediction_date.month
         if month in [12, 1, 2]:
             seasonal_factor = 0.2
