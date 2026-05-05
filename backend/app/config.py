@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = _sqlite_url(BACKEND_DIR / "aquaai.db")
     MODELS_DIR: str = _backend_path("models")
     SCALERS_DIR: str = _backend_path("scalers")
+    DATASET_PATH: str = _backend_path("data/weather.csv")
     DATA_DIR: str = _backend_path("data")
     NASA_LAT: float = 12.87
     NASA_LON: float = 74.88

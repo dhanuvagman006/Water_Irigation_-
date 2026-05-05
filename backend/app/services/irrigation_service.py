@@ -2,12 +2,13 @@ import numpy as np
 from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import logging
+logger = logging.getLogger(__name__)
 from fastapi import HTTPException
 from app.schemas.irrigation import IrrigationPredictRequest, IrrigationPredictResponse, IrrigationDayPlan
 from app.schemas.rainfall import RainfallPredictRequest
 from app.services.rainfall_service import rainfall_service
 from app.services.model_loader import ModelLoader
-from app.database.models import NASADataRecord
 from app.config import settings
 
 BASE_WATER_REQUIREMENTS = {
@@ -33,44 +34,14 @@ def get_moisture_factor(soil_moisture: float) -> float:
 
 
 class IrrigationService:
-    def _predict_decision_ml(self, model, scaler, features: list[float]) -> str | None:
-        try:
-            feature_arr = np.array(features, dtype=float)
-            scaled = feature_arr.copy()
-            scaled[:5] = scaler.transform(feature_arr[:5].reshape(1, -1))[0]
-            X = np.expand_dims(scaled, axis=(0, 1))
-            probs = model.predict(X, verbose=0)
-            class_idx = int(np.argmax(probs, axis=1)[0])
-            return DECISION_INDEX.get(class_idx)
-        except Exception:
-            return None
-
     async def predict(self, request: IrrigationPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> IrrigationPredictResponse:
         rain_req = RainfallPredictRequest(model=settings.DEFAULT_MODEL, days=14)
         rain_resp = await rainfall_service.predict(rain_req, model_loader, db_session)
         rain_preds = [p.predicted_mm for p in rain_resp.predictions]
 
         temp_max = 30.0
-        try:
-            stmt = select(NASADataRecord).order_by(NASADataRecord.date.desc()).limit(30)
-            result = await db_session.execute(stmt)
-            records = list(result.scalars().all())
-            if records and records[0].temp_max is not None:
-                temp_max = float(records[0].temp_max)
-        except Exception:
-            temp_max = 30.0
 
-        model_used = request.model
-        use_model = True
-        try:
-            model = model_loader.get_model("irrigation", request.model)
-            scaler = model_loader.get_scaler("irrigation")
-        except HTTPException:
-            use_model = False
-            model_used = f"{request.model} (rule-based fallback)"
-        except Exception:
-            use_model = False
-            model_used = f"{request.model} (rule-based fallback)"
+        model_used = f"{request.model} (rule-based)"
         
         plan = []
         total_water_liters = {crop: 0.0 for crop in request.crop_types}
@@ -95,43 +66,26 @@ class IrrigationService:
                 moisture_adjusted_need = base_need * moisture_factor
                 irrigation_needed = max(0, moisture_adjusted_need - rainfall_contribution)
 
-                should_skip_saturation = current_moisture >= SATURATION_THRESHOLD
-
-                decision = None
-                if use_model and not should_skip_saturation:
-                    crop_idx = CROP_INDEX.get(crop, 0)
-                    stage_idx = STAGE_INDEX.get(stage, 0)
-                    decision = self._predict_decision_ml(
-                        model,
-                        scaler,
-                        [current_moisture, rain_today, rain_d2, rain_d3, temp_max, crop_idx, stage_idx],
-                    )
-
-                if should_skip_saturation:
+                if current_moisture >= 0.8:
                     decision = "No Irrigate"
                     liters = 0.0
-                    reason = f"Soil saturated (moisture={current_moisture:.2f}), skipping irrigation."
-                elif decision == "No Irrigate":
+                    reason = "Soil already saturated"
+                elif rain_today > 10:
+                    decision = "No Irrigate"
                     liters = 0.0
-                    reason = f"ML decision: No Irrigate. Soil moisture {current_moisture:.2f}, rainfall {rain_today:.1f}mm."
-                elif decision == "Monitor":
-                    liters = round(min(irrigation_needed, base_need * 0.5) * num_plants, 2)
-                    reason = f"ML decision: Monitor. Soil moisture {current_moisture:.2f}, rainfall {rain_today:.1f}mm."
-                elif decision == "Irrigate":
-                    liters = round(max(irrigation_needed, 0) * num_plants, 2)
-                    reason = f"ML decision: Irrigate. Soil moisture {current_moisture:.2f}, rainfall {rain_today:.1f}mm."
+                    reason = "Sufficient rainfall today"
                 elif irrigation_needed <= 0:
                     decision = "No Irrigate"
                     liters = 0.0
-                    reason = f"Soil moisture ({current_moisture:.2f}) and rainfall ({rain_today:.1f}mm) cover today's need."
+                    reason = "Rainfall covers requirement"
                 elif irrigation_needed < (base_need * 0.5):
                     decision = "Monitor"
                     liters = round(irrigation_needed * num_plants, 2)
-                    reason = f"Moderate moisture ({current_moisture:.2f}); rainfall partially covers need, apply {liters:.1f}L."
+                    reason = "Partial irrigation needed"
                 else:
                     decision = "Irrigate"
                     liters = round(irrigation_needed * num_plants, 2)
-                    reason = f"Soil moisture deficit ({current_moisture:.2f}) with low rainfall ({rain_today:.1f}mm), irrigation needed."
+                    reason = "Soil moisture deficit"
 
                 total_water_liters[crop] += liters
                 

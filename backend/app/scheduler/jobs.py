@@ -22,18 +22,18 @@ def _dummy_from_input_shape(input_shape):
         dims.append(1 if dim is None else int(dim))
     return np.zeros(tuple(dims), dtype=np.float32)
 
-@scheduler.scheduled_job('cron', hour=0, minute=30)
-async def daily_nasa_fetch():
-    logger.info("Executing daily NASA fetch job")
-    start = date.today() - timedelta(days=2)
-    end = date.today() - timedelta(days=1)
+# @scheduler.scheduled_job('cron', hour=0, minute=30)
+# async def daily_nasa_fetch():
+#     logger.info("Executing daily NASA fetch job")
+#     start = date.today() - timedelta(days=2)
+#     end = date.today() - timedelta(days=1)
     
-    try:
-        async with AsyncSessionLocal() as db:
-            result = await nasa_service.fetch(start, end, db)
-            logger.info(f"NASA Fetch Job Success: {result}")
-    except Exception as e:
-        logger.error(f"NASA Fetch Job Failed: {e}")
+#     try:
+#         async with AsyncSessionLocal() as db:
+#             result = await nasa_service.fetch(start, end, db)
+#             logger.info(f"NASA Fetch Job Success: {result}")
+#     except Exception as e:
+#         logger.error(f"NASA Fetch Job Failed: {e}")
 
 @scheduler.scheduled_job('cron', day_of_week='sun', hour=1, minute=0)
 async def weekly_model_warmup():

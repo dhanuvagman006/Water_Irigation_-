@@ -4,10 +4,8 @@ import type { RainfallPrediction, ModelMetrics, ModelName } from '../types'
 
 import { normalizeModelName } from '../utils/formatters'
 
-function daysToHorizon(days: number): string {
-  if (days <= 3) return 'short'
-  if (days <= 10) return 'medium'
-  return 'long'
+function daysToHorizon(): string {
+  return 'medium'
 }
 
 export function useRainfallPrediction(model: ModelName, startDate?: Date, days: number = 14) {
@@ -17,7 +15,7 @@ export function useRainfallPrediction(model: ModelName, startDate?: Date, days: 
       const payload: Record<string, string | number> = {
         model,
         days,
-        horizon: daysToHorizon(days),
+        horizon: daysToHorizon(),
       }
       if (startDate) {
         payload.start_date = startDate.toISOString().split('T')[0]

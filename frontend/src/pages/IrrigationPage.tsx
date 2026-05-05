@@ -20,6 +20,7 @@ const columnHelper = createColumnHelper<IrrigationPlan>()
 export default function IrrigationPage() {
   const [model, setModel] = useState<ModelName>('LSTM')
   const [soilMoisture, setSoilMoisture] = useState(0.35)
+  const [plantsPerCrop, setPlantsPerCrop] = useState(50)
   const [selectedCrops, setSelectedCrops] = useState<CropType[]>(['Arecanut', 'Coconut', 'Pepper'])
   const [sorting, setSorting] = useState<SortingState>([])
 
@@ -33,6 +34,7 @@ export default function IrrigationPage() {
         soil_moisture: soilMoisture,
         crop_types: selectedCrops,
         model,
+        plants_per_crop: plantsPerCrop,
       })
     }
   }, [])
@@ -42,6 +44,7 @@ export default function IrrigationPage() {
       soil_moisture: soilMoisture,
       crop_types: selectedCrops,
       model,
+      plants_per_crop: plantsPerCrop,
     })
   }
 
@@ -150,6 +153,20 @@ export default function IrrigationPage() {
               type="range" min="0" max="1" step="0.01" value={soilMoisture}
               onChange={(e) => setSoilMoisture(Number(e.target.value))}
               className="w-full accent-primary h-1.5"
+            />
+          </div>
+
+          {/* Plants per crop */}
+          <div className="min-w-[160px]">
+            <label className="text-xs text-text-muted dark:text-text-dark-muted font-medium block mb-1.5">
+              Plants per Crop
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={plantsPerCrop}
+              onChange={(e) => setPlantsPerCrop(Math.max(1, Number(e.target.value)))}
+              className="input"
             />
           </div>
 

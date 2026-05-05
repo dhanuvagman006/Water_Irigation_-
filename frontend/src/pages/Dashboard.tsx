@@ -64,7 +64,6 @@ export default function Dashboard() {
         tank_capacity: 50000, // 50,000 liters
         current_level: 40000, // 40,000 liters
         daily_consumption: 1000, // 1,000 liters/day
-        model: selectedModel,
       })
     }
     
@@ -74,6 +73,7 @@ export default function Dashboard() {
         soil_moisture: 0.35,
         crop_types: ['Arecanut', 'Coconut', 'Pepper'],
         model: selectedModel,
+        plants_per_crop: 50,
       })
     }
   }, [])

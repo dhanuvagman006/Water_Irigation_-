@@ -52,7 +52,7 @@ api.interceptors.response.use(
     if (error.response?.status === 403) {
       toast.error('Backend connection failed: Invalid API key or server not running')
     } else if (error.response?.status === 422) {
-      toast.error('Server needs more weather data — check backend logs')
+      toast.error(message)
     } else if (error.response?.status >= 500) {
       toast.error('Server error — please check the backend')
     } else if (error.code === 'ECONNABORTED') {

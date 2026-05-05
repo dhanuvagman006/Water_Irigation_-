@@ -28,7 +28,7 @@ class Preprocessor:
         df = df.reset_index(drop=True)
         return df
 
-    def create_sliding_window(self, data: np.ndarray, window_size: int = 30) -> np.ndarray:
+    def create_sliding_window(self, data: np.ndarray, window_size: int = 60) -> np.ndarray:
         if len(data) < window_size:
             raise ValueError(f"Not enough data. Expected at least {window_size} days, got {len(data)}")
         window = data[-window_size:]

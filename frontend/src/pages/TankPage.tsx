@@ -1,16 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Play, AlertCircle } from 'lucide-react'
-import ModelSelector from '../components/shared/ModelSelector'
 import TankLevelBarChart from '../components/charts/TankLevelBarChart'
 import AlertCard from '../components/cards/AlertCard'
 import ErrorBoundary from '../components/shared/ErrorBoundary'
 import { ChartSkeleton } from '../components/shared/LoadingSpinner'
 import { useTankPrediction } from '../api/tankApi'
-import type { ModelName, TankPrediction } from '../types'
+import type { TankPrediction } from '../types'
 
 export default function TankPage() {
-  const [model, setModel] = useState<ModelName>('LSTM')
   const [roofArea, setRoofArea] = useState(120)
   const [tankCapacity, setTankCapacity] = useState(5000)
   const [currentLevelPercent, setCurrentLevelPercent] = useState(75)
@@ -31,7 +29,6 @@ export default function TankPage() {
         tank_capacity: tankCapacity,
         current_level: currentLevelLiters,
         daily_consumption: dailyConsumption,
-        model,
       })
     }
   }, [])
@@ -42,7 +39,6 @@ export default function TankPage() {
       tank_capacity: tankCapacity,
       current_level: currentLevelLiters,
       daily_consumption: dailyConsumption,
-      model,
     })
   }
 
@@ -131,12 +127,6 @@ export default function TankPage() {
               onChange={(e) => setDailyConsumption(Number(e.target.value))}
               className="input"
             />
-          </div>
-
-          {/* Model */}
-          <div>
-            <label className="text-xs text-text-muted dark:text-text-dark-muted font-medium block mb-1.5">Model</label>
-            <ModelSelector value={model} onChange={setModel} />
           </div>
 
           <button onClick={handlePredict} className="btn-primary w-full" disabled={mutation.isPending}>

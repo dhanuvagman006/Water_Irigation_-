@@ -15,10 +15,10 @@ class ModelLoader:
         self.scalers: dict = {}
         self.load_errors: dict[str, str] = {}
         self.expected_models = [
-            "lstm", "gru", "bilstm", "cnn_lstm", "simplernn",
-            "lstm_attention", "wlstm", "transformer", "stacked_lstm"
+            "lstm", "gru", "bilstm",
+            "cnn_lstm", "simplernn", "wlstm"
         ]
-        self.modules = ["rainfall", "tank", "irrigation"]
+        self.modules = ["rainfall"]
 
     async def load_all(self):
         if not settings.LOAD_MODELS:

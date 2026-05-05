@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Trophy, Award } from 'lucide-react'
 import {
@@ -9,13 +9,8 @@ import MetricsBarChart from '../components/charts/MetricsBarChart'
 import ModelComparisonRadar from '../components/charts/ModelComparisonRadar'
 import ErrorBoundary from '../components/shared/ErrorBoundary'
 import { useRainfallMetrics } from '../api/rainfallApi'
-import { useIrrigationMetrics } from '../api/irrigationApi'
-import { useTankMetrics } from '../api/tankApi'
 import { MODEL_COLORS } from '../utils/formatters'
 import type { ModelMetrics, ModelName } from '../types'
-
-const tabs = ['Rainfall', 'Tank', 'Irrigation'] as const
-type TabType = (typeof tabs)[number]
 
 const columnHelper = createColumnHelper<ModelMetrics>()
 
@@ -48,21 +43,12 @@ function getConfidence(data: ModelMetrics[]): number {
 }
 
 export default function ModelComparisonPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('Rainfall')
   const [sorting, setSorting] = useState<SortingState>([])
 
   const { data: rainfallMetrics } = useRainfallMetrics()
-  const { data: tankMetrics } = useTankMetrics()
-  const { data: irrigationMetrics } = useIrrigationMetrics()
-
-  const metricsMap: Record<TabType, ModelMetrics[] | undefined> = useMemo(() => ({
-    Rainfall: rainfallMetrics,
-    Tank: tankMetrics,
-    Irrigation: irrigationMetrics,
-  }), [rainfallMetrics, tankMetrics, irrigationMetrics])
 
   const currentMetrics = useMemo(() => {
-    const metrics = metricsMap[activeTab] ?? []
+    const metrics = rainfallMetrics ?? []
     const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'StackedLSTM', 'SimpleRNN', 'LSTM+Attention', 'Transformer']
     
     // Deduplicate and filter, keeping the most recent record
@@ -74,7 +60,7 @@ export default function ModelComparisonPage() {
     })
 
     return Array.from(latestMetricsMap.values())
-  }, [metricsMap, activeTab])
+  }, [rainfallMetrics])
 
   const bestModel = useMemo(() => {
     if (!currentMetrics.length) return null
@@ -191,47 +177,24 @@ export default function ModelComparisonPage() {
 
   // Summary section — recommended model per module
   const recommendations = useMemo(() => {
-    return tabs.map((tab) => {
-      const data = metricsMap[tab]
-      if (!data?.length) return { tab, model: 'N/A', confidence: 0 }
-      return {
-        tab,
-        model: getBest(data, 'rmse', true),
-        confidence: getConfidence(data),
-      }
-    })
-  }, [metricsMap])
+    if (!currentMetrics.length) return []
+    return [{ tab: 'Rainfall', model: getBest(currentMetrics, 'rmse', true), confidence: getConfidence(currentMetrics) }]
+  }, [currentMetrics])
 
   return (
     <ErrorBoundary>
       <div className="space-y-6">
-        {/* Tab bar */}
-        <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200
-                ${activeTab === tab
-                  ? 'bg-white dark:bg-surface-dark text-primary shadow-sm'
-                  : 'text-text-muted dark:text-text-dark-muted hover:text-text-primary dark:hover:text-white'}`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
         {/* Best model badge */}
         {bestModel && (
           <motion.div
-            key={activeTab}
+            key="rainfall-best"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 dark:bg-primary/20 rounded-xl"
           >
             <Award className="w-5 h-5 text-primary" />
             <span className="text-sm font-semibold text-primary">
-              Best {activeTab} Model: {bestModel}
+              Best Rainfall Model: {bestModel}
             </span>
             <span className="text-xs text-text-muted dark:text-text-dark-muted">(lowest RMSE)</span>
           </motion.div>
@@ -239,13 +202,13 @@ export default function ModelComparisonPage() {
 
         {/* Metrics table */}
         <motion.div
-          key={`table-${activeTab}`}
+          key="table-rainfall"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="card p-5"
         >
           <h3 className="text-sm font-semibold text-text-primary dark:text-white mb-4">
-            {activeTab} Model Metrics
+            Rainfall Model Metrics
           </h3>
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
@@ -284,8 +247,8 @@ export default function ModelComparisonPage() {
 
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <MetricsBarChart data={currentMetrics} metric="rmse" title={`${activeTab} — RMSE Comparison`} />
-          <ModelComparisonRadar data={currentMetrics} title={`${activeTab} — Multi-Metric Radar`} />
+          <MetricsBarChart data={currentMetrics} metric="rmse" title="Rainfall — RMSE Comparison" />
+          <ModelComparisonRadar data={currentMetrics} title="Rainfall — Multi-Metric Radar" />
         </div>
 
         {/* Summary — Recommended models */}

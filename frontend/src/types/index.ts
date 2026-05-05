@@ -27,7 +27,6 @@ export type TankPrediction = {
   date: string
   level: TankLevel
   percentage: number
-  model: ModelName
 }
 
 export type CropType = 'Arecanut' | 'Coconut' | 'Pepper'
@@ -59,11 +58,11 @@ export type TankInput = {
   tank_capacity: number
   current_level: number
   daily_consumption: number
-  model: ModelName
 }
 
 export type IrrigationInput = {
   soil_moisture: number
   crop_types: CropType[]
   model: ModelName
+  plants_per_crop: number
 }

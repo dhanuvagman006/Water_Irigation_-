@@ -1,7 +1,6 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import api from './axiosConfig'
-import type { TankPrediction, ModelMetrics, TankInput } from '../types'
-import { normalizeModelName } from '../utils/formatters'
+import type { TankPrediction, TankInput } from '../types'
 
 export function useTankPrediction() {
   return useMutation<TankPrediction[], Error, TankInput>({
@@ -12,22 +11,7 @@ export function useTankPrediction() {
         date: String(p.date),
         level: p.level as TankPrediction['level'],
         percentage: Number(p.percentage),
-        model: input.model,
       }))
     },
-  })
-}
-
-export function useTankMetrics() {
-  return useQuery<ModelMetrics[]>({
-    queryKey: ['tankMetrics'],
-    queryFn: async () => {
-      const { data } = await api.get('/tank/metrics')
-      return data.map((item: Record<string, unknown>) => ({
-        ...item,
-        model: normalizeModelName(String(item.model_name))
-      })) as ModelMetrics[]
-    },
-    staleTime: 10 * 60 * 1000,
   })
 }

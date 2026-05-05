@@ -11,7 +11,7 @@ from app.database.base import Base, engine
 from app.services.model_loader import model_loader, HORIZON_SUFFIXES
 from app.scheduler.jobs import scheduler
 from app.routers import rainfall, tank, irrigation, models, data
-from app.database.models import RainfallRecord, TankRecord, IrrigationRecord, ModelMetricsRecord, NASADataRecord
+from app.database.models import RainfallRecord, TankRecord, IrrigationRecord, ModelMetricsRecord
 
 logger = structlog.get_logger()
 
@@ -29,30 +29,7 @@ async def lifespan(app: FastAPI):
     import pandas as pd
     import os
     
-    async with AsyncSessionLocal() as session:
-        count = await session.scalar(select(func.count(NASADataRecord.id)))
-        if count is None or count == 0:
-            logger.info("Database empty. Loading context from local CSV...")
-            csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Dakshina_Kannada_Weather_2000_2024.csv")
-            if os.path.exists(csv_path):
-                df_local = pd.read_csv(csv_path)
-                for _, row in df_local.iterrows():
-                    record = NASADataRecord(
-                        date=pd.to_datetime(row["Date"]).date(),
-                        precipitation_mm=row["precipitation_mm"],
-                        temp_max=row["temp_max"],
-                        temp_min=row["temp_min"],
-                        humidity=row["humidity"],
-                        wind_speed=row["wind_speed"],
-                        solar_radiation=row["solar_radiation"],
-                        pressure=row["pressure"]
-                    )
-                    session.add(record)
-                await session.commit()
-                logger.info("Local context loaded successfully.")
-            else:
-                logger.error(f"Local CSV not found at {csv_path}")
-    
+
     logger.info("Loading models...")
     await model_loader.load_all()
     
@@ -173,5 +150,5 @@ async def health_ready():
         "models_loaded": loaded_models_count,
         "models_expected": expected_models_count,
         "db_connected": True,
-        "nasa_data_fresh": True
+        "data_source": "local_csv"
     }
