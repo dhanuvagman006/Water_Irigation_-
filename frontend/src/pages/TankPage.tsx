@@ -138,7 +138,7 @@ export default function TankPage() {
               Rainfall (mm)
             </label>
             <input
-               value={rainfallMm}
+               value={rainfallMm} type="number"
               onChange={(e) => setRainfallMm(Number(e.target.value))}
               className="input"
             />
