@@ -2,7 +2,7 @@
 // AquaAI — Water Management System Types
 // ============================================================
 
-export type ModelName = 'LSTM' | 'GRU' | 'BiLSTM' | 'CNN-LSTM' | 'WLSTM' | 'StackedLSTM' | 'SimpleRNN' | 'LSTM+Attention' | 'Transformer'
+export type ModelName = 'LSTM' | 'GRU' | 'BiLSTM' | 'CNN-LSTM' | 'WLSTM' | 'SimpleRNN'
 
 export type RainfallPrediction = {
   date: string            // ISO date string
@@ -63,6 +63,5 @@ export type TankInput = {
 export type IrrigationInput = {
   soil_moisture: number
   crop_types: CropType[]
-  model: ModelName
   plants_per_crop: number
 }

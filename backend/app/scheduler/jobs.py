@@ -2,7 +2,6 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import date, timedelta
 from app.database.base import AsyncSessionLocal
-from app.services.nasa_service import nasa_service
 from app.services.model_loader import model_loader
 import numpy as np
 

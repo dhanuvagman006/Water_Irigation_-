@@ -48,10 +48,7 @@ export const MODEL_COLORS: Record<string, string> = {
   BiLSTM: '#8B5CF6',
   'CNN-LSTM': '#E24B4A',
   WLSTM: '#BA7517',
-  StackedLSTM: '#3B6D11',
   SimpleRNN: '#F59E0B',
-  'LSTM+Attention': '#EC4899',
-  Transformer: '#06B6D4',
 }
 
 export function normalizeModelName(backendName: string): string {
@@ -61,10 +58,7 @@ export function normalizeModelName(backendName: string): string {
     bilstm: 'BiLSTM',
     cnn_lstm: 'CNN-LSTM',
     wlstm: 'WLSTM',
-    stacked_lstm: 'StackedLSTM',
     simplernn: 'SimpleRNN',
-    lstm_attention: 'LSTM+Attention',
-    transformer: 'Transformer'
   };
   return map[backendName.toLowerCase()] || backendName;
 }

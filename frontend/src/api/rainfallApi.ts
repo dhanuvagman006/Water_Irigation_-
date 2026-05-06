@@ -8,7 +8,12 @@ function daysToHorizon(): string {
   return 'medium'
 }
 
-export function useRainfallPrediction(model: ModelName, startDate?: Date, days: number = 14) {
+export function useRainfallPrediction(
+  model: ModelName,
+  startDate?: Date,
+  days: number = 14,
+  options?: { enabled?: boolean }
+) {
   return useQuery<RainfallPrediction[]>({
     queryKey: ['rainfall', model, startDate?.toISOString(), days],
     queryFn: async () => {
@@ -24,6 +29,7 @@ export function useRainfallPrediction(model: ModelName, startDate?: Date, days: 
       const { data } = await api.post('/rainfall/predict', payload)
       return data.predictions
     },
+    enabled: options?.enabled ?? true,
     staleTime: 5 * 60 * 1000,
   })
 }

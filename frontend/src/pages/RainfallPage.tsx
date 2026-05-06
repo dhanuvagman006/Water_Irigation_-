@@ -97,7 +97,7 @@ export default function RainfallPage() {
 
   const filteredMetrics = useMemo(() => {
     if (!metrics) return []
-    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'StackedLSTM', 'SimpleRNN', 'LSTM+Attention', 'Transformer']
+    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'SimpleRNN']
     
     // Deduplicate and filter, keeping the most recent record
     const latestMetricsMap = new Map<ModelName, ModelMetrics>()
@@ -109,6 +109,8 @@ export default function RainfallPage() {
 
     return Array.from(latestMetricsMap.values())
   }, [metrics])
+
+  const hasActual = useMemo(() => (rainfall ?? []).some((r) => r.actual_mm != null), [rainfall])
 
   const metricColumns = useMemo(() => [
     columnHelper.accessor('model', {
@@ -267,7 +269,9 @@ export default function RainfallPage() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <ReferenceLine y={10} stroke="#BA7517" strokeDasharray="6 3" label={{ value: '10mm threshold', position: 'right', style: { fontSize: 10, fill: '#BA7517' } }} />
-                <Bar dataKey="actual_mm" name="Actual" fill="#378ADD" fillOpacity={0.4} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                {hasActual && (
+                  <Bar dataKey="actual_mm" name="Actual" fill="#378ADD" fillOpacity={0.4} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                )}
                 <Line type="monotone" dataKey="predicted_mm" name="Predicted" stroke="#0F6E56" strokeWidth={2.5} dot={{ r: 4, fill: '#0F6E56', stroke: '#fff', strokeWidth: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>

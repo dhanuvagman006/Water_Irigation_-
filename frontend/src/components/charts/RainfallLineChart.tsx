@@ -43,6 +43,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 }
 
 export default function RainfallLineChart({ data, showActual = true }: RainfallLineChartProps) {
+  const hasActual = showActual && data.some((d) => d.actual_mm != null)
+
   return (
     <div className="card p-5">
       <h3 className="text-sm font-semibold text-text-primary dark:text-white mb-4">
@@ -81,7 +83,7 @@ export default function RainfallLineChart({ data, showActual = true }: RainfallL
             dot={{ r: 4, fill: '#0F6E56', stroke: '#fff', strokeWidth: 2 }}
             activeDot={{ r: 6 }}
           />
-          {showActual && (
+          {hasActual && (
             <Line
               type="monotone"
               dataKey="actual_mm"

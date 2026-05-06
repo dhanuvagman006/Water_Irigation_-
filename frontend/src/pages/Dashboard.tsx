@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { CloudRain, Database, Sprout, CalendarClock, AlertCircle } from 'lucide-react'
 import {
   useReactTable,
@@ -47,7 +47,12 @@ export default function Dashboard() {
     return d
   }, [])
 
-  const { data: rainfallData, isLoading: rainfallLoading, isError, error, refetch } = useRainfallPrediction(selectedModel, today, 14)
+  const { data: rainfallData, isLoading: rainfallLoading, isFetching: rainfallFetching, isError, error, refetch } = useRainfallPrediction(
+    selectedModel,
+    today,
+    14,
+    { enabled: false }
+  )
   const tankMutation = useTankPrediction()
   const irrigationMutation = useIrrigationPrediction()
 
@@ -55,30 +60,23 @@ export default function Dashboard() {
   const tank: TankPrediction[] = (tankMutation.data ?? [])
   const irrigation: IrrigationPlan[] = (irrigationMutation.data ?? [])
   
-  // Auto-fetch tank and irrigation predictions on first load
-  useEffect(() => {
-    // Fetch tank predictions
-    if (!tankMutation.data && !tankMutation.isPending && !tankMutation.isError) {
-      tankMutation.mutate({
-        roof_area: 100, // 100 m²
-        tank_capacity: 50000, // 50,000 liters
-        current_level: 40000, // 40,000 liters
-        daily_consumption: 1000, // 1,000 liters/day
-      })
-    }
-    
-    // Fetch irrigation predictions
-    if (!irrigationMutation.data && !irrigationMutation.isPending && !irrigationMutation.isError) {
-      irrigationMutation.mutate({
-        soil_moisture: 0.35,
-        crop_types: ['Arecanut', 'Coconut', 'Pepper'],
-        model: selectedModel,
-        plants_per_crop: 50,
-      })
-    }
-  }, [])
-  
-  const isLoading = rainfallLoading || tankMutation.isPending || irrigationMutation.isPending
+  const handleLoadData = () => {
+    refetch()
+    tankMutation.mutate({
+      roof_area: 100, // 100 m²
+      tank_capacity: 50000, // 50,000 liters
+      current_level: 40000, // 40,000 liters
+      daily_consumption: 1000, // 1,000 liters/day
+    })
+    irrigationMutation.mutate({
+      soil_moisture: 0.35,
+      crop_types: ['Arecanut', 'Coconut', 'Pepper'],
+      plants_per_crop: 50,
+    })
+  }
+
+  const isLoading = rainfallLoading || rainfallFetching || tankMutation.isPending || irrigationMutation.isPending
+  const hasData = rainfall.length > 0 || tank.length > 0 || irrigation.length > 0
 
   // Compute stats
   const todayRainfall = rainfall[0]?.predicted_mm ?? 0
@@ -163,6 +161,13 @@ export default function Dashboard() {
             </button>
           </motion.div>
         )}
+
+        {/* Manual load */}
+        <div className="flex justify-end">
+          <button onClick={handleLoadData} className="btn-primary" disabled={isLoading}>
+            {hasData ? 'Refresh Data' : 'Load Data'}
+          </button>
+        </div>
 
         {/* Stat cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

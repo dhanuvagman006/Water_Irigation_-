@@ -4,7 +4,6 @@ from sqlalchemy import select, func
 from datetime import date
 from app.database.models import NASADataRecord
 from app.dependencies import get_db
-from app.services.nasa_service import nasa_service
 
 router = APIRouter()
 

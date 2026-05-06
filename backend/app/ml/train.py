@@ -19,7 +19,7 @@ SCALER_PATH = "scalers/rainfall_scaler.pkl"
 
 WINDOW_SIZE = 60
 HORIZONS = [1, 7, 15]
-EPOCHS = 30
+EPOCHS = 2
 BATCH_SIZE = 32
 
 os.makedirs(MODELS_DIR, exist_ok=True)

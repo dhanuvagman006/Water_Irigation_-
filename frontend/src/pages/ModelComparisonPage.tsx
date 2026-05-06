@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Trophy, Award } from 'lucide-react'
 import {
@@ -49,7 +49,7 @@ export default function ModelComparisonPage() {
 
   const currentMetrics = useMemo(() => {
     const metrics = rainfallMetrics ?? []
-    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'StackedLSTM', 'SimpleRNN', 'LSTM+Attention', 'Transformer']
+    const validModels: ModelName[] = ['LSTM', 'GRU', 'BiLSTM', 'CNN-LSTM', 'WLSTM', 'SimpleRNN']
     
     // Deduplicate and filter, keeping the most recent record
     const latestMetricsMap = new Map<ModelName, ModelMetrics>()

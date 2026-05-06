@@ -30,7 +30,7 @@ export default function Topbar() {
         {/* Location badge */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/5 dark:bg-primary/10 text-xs font-medium text-primary dark:text-secondary">
           <MapPin className="w-3.5 h-3.5" />
-          12.87°N 74.88°E
+          Mangaluru, Karnataka
         </div>
 
         {/* Last updated */}

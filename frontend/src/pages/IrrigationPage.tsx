@@ -5,7 +5,6 @@ import {
   useReactTable, getCoreRowModel, getSortedRowModel, flexRender, createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import ModelSelector from '../components/shared/ModelSelector'
 import CropStatusCard from '../components/cards/CropStatusCard'
 import AlertCard from '../components/cards/AlertCard'
 import IrrigationHeatmap from '../components/charts/IrrigationHeatmap'
@@ -13,12 +12,11 @@ import ErrorBoundary from '../components/shared/ErrorBoundary'
 import { ChartSkeleton } from '../components/shared/LoadingSpinner'
 import { useIrrigationPrediction } from '../api/irrigationApi'
 import { formatDate, exportToCSV } from '../utils/formatters'
-import type { ModelName, CropType, IrrigationPlan } from '../types'
+import type { CropType, IrrigationPlan } from '../types'
 
 const columnHelper = createColumnHelper<IrrigationPlan>()
 
 export default function IrrigationPage() {
-  const [model, setModel] = useState<ModelName>('LSTM')
   const [soilMoisture, setSoilMoisture] = useState(0.35)
   const [plantsPerCrop, setPlantsPerCrop] = useState(50)
   const [selectedCrops, setSelectedCrops] = useState<CropType[]>(['Arecanut', 'Coconut', 'Pepper'])
@@ -33,7 +31,6 @@ export default function IrrigationPage() {
       mutation.mutate({
         soil_moisture: soilMoisture,
         crop_types: selectedCrops,
-        model,
         plants_per_crop: plantsPerCrop,
       })
     }
@@ -43,7 +40,6 @@ export default function IrrigationPage() {
     mutation.mutate({
       soil_moisture: soilMoisture,
       crop_types: selectedCrops,
-      model,
       plants_per_crop: plantsPerCrop,
     })
   }
@@ -192,11 +188,6 @@ export default function IrrigationPage() {
                 </label>
               ))}
             </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-text-muted dark:text-text-dark-muted font-medium block mb-1.5">Model</label>
-            <ModelSelector value={model} onChange={setModel} />
           </div>
 
           <button onClick={handleGenerate} className="btn-primary" disabled={mutation.isPending}>

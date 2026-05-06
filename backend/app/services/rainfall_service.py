@@ -19,7 +19,7 @@ def load_local_csv(path: str):
     return df
 
 class RainfallService:
-    def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
+    async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
         context_end = (request.start_date or date.today()) - timedelta(days=1)
         # df = await self._get_local_data(db_session, end_date=context_end, days=60)
         df = load_local_csv(settings.DATASET_PATH)

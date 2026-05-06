@@ -7,10 +7,7 @@ const models: ModelName[] = [
   'BiLSTM',
   'CNN-LSTM',
   'WLSTM',
-  'StackedLSTM',
   'SimpleRNN',
-  'LSTM+Attention',
-  'Transformer',
 ]
 
 interface ModelSelectorProps {

@@ -46,6 +46,12 @@ export default function TankPage() {
   const lowDay = predictions.findIndex((p) => p.level === 'Low')
   const daysRemaining = predictions.filter((p) => p.level !== 'Low').length
   const avgRainCollection = Math.round(roofArea * 15 * 0.8)
+  const latestPrediction =
+    predictions.length > 0
+      ? predictions[predictions.length - 1]
+      : null
+  const predictedPercent =
+    latestPrediction?.percentage ?? currentLevelPercent
 
   return (
     <ErrorBoundary>
@@ -169,7 +175,7 @@ export default function TankPage() {
                   <motion.div
                     className="h-full rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${currentLevelPercent}%` }}
+                    animate={{ width: `${predictedPercent}%` }}
                     transition={{ duration: 0.8, ease: 'easeOut' }}
                     style={{
                       background: currentLevelPercent > 70
@@ -182,7 +188,7 @@ export default function TankPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">0%</span>
-                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{currentLevelPercent}%</span>
+                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{predictedPercent.toFixed(0)}%</span>
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">100%</span>
                 </div>
               </div>
@@ -190,7 +196,7 @@ export default function TankPage() {
                 <p className="text-xs text-text-muted dark:text-text-dark-muted">Capacity</p>
                 <p className="text-lg font-mono font-bold text-text-primary dark:text-white">{tankCapacity}L</p>
                 <p className="text-xs text-text-muted dark:text-text-dark-muted mt-1">
-                  Available: {currentLevelLiters}L
+                  Available: {Math.round((predictedPercent / 100) * tankCapacity)}L
                 </p>
               </div>
             </div>
