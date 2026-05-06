@@ -13,6 +13,7 @@ export default function TankPage() {
   const [tankCapacity, setTankCapacity] = useState(5000)
   const [currentLevelPercent, setCurrentLevelPercent] = useState(75)
   const [dailyConsumption, setDailyConsumption] = useState(200)
+  const [rainfallMm, setRainfallMm] = useState(0)
 
   const mutation = useTankPrediction()
   const predictions = (mutation.data ?? []) as TankPrediction[]
@@ -46,12 +47,10 @@ export default function TankPage() {
   const lowDay = predictions.findIndex((p) => p.level === 'Low')
   const daysRemaining = predictions.filter((p) => p.level !== 'Low').length
   const avgRainCollection = Math.round(roofArea * 15 * 0.8)
-  const latestPrediction =
-    predictions.length > 0
-      ? predictions[predictions.length - 1]
-      : null
-  const predictedPercent =
-    latestPrediction?.percentage ?? currentLevelPercent
+  const rainfallLiters = Math.round(roofArea * rainfallMm * 0.8)
+  const predictedPercentWithRain = tankCapacity > 0
+    ? Math.min(100, Math.max(0, (rainfallLiters / tankCapacity) * 100))
+    : 0
 
   return (
     <ErrorBoundary>
@@ -117,7 +116,7 @@ export default function TankPage() {
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-lg font-bold font-mono text-white drop-shadow-md">
-                  {currentLevelPercent}%
+                  {predictedPercentWithRain.toFixed(0)}%
                 </span>
               </div>
             </div>
@@ -131,6 +130,18 @@ export default function TankPage() {
             <input
               type="number" value={dailyConsumption}
               onChange={(e) => setDailyConsumption(Number(e.target.value))}
+              className="input"
+            />
+          </div>
+
+          {/* Rainfall */}
+          <div>
+            <label className="text-xs text-text-muted dark:text-text-dark-muted font-medium block mb-1.5">
+              Rainfall (mm)
+            </label>
+            <input
+               value={rainfallMm}
+              onChange={(e) => setRainfallMm(Number(e.target.value))}
               className="input"
             />
           </div>
@@ -168,19 +179,19 @@ export default function TankPage() {
             animate={{ opacity: 1, y: 0 }}
             className="card p-6"
           >
-            <h3 className="text-sm font-semibold text-text-primary dark:text-white mb-4">Current + Predicted Fill</h3>
+            <h3 className="text-sm font-semibold text-text-primary dark:text-white mb-4">Predicted Final Tank Fill</h3>
             <div className="flex items-center gap-6">
               <div className="flex-1">
                 <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                   <motion.div
                     className="h-full rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ width: `${predictedPercent}%` }}
+                    animate={{ width: `${predictedPercentWithRain}%` }}
                     transition={{ duration: 0.8, ease: 'easeOut' }}
                     style={{
-                      background: currentLevelPercent > 70
+                      background: predictedPercentWithRain > 70
                         ? 'linear-gradient(to right, #0F6E56, #1D9E75)'
-                        : currentLevelPercent > 35
+                        : predictedPercentWithRain > 35
                         ? 'linear-gradient(to right, #BA7517, #FCD34D)'
                         : 'linear-gradient(to right, #E24B4A, #F87171)',
                     }}
@@ -188,7 +199,7 @@ export default function TankPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">0%</span>
-                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{predictedPercent.toFixed(0)}%</span>
+                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{predictedPercentWithRain.toFixed(0)}%</span>
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">100%</span>
                 </div>
               </div>
@@ -196,7 +207,7 @@ export default function TankPage() {
                 <p className="text-xs text-text-muted dark:text-text-dark-muted">Capacity</p>
                 <p className="text-lg font-mono font-bold text-text-primary dark:text-white">{tankCapacity}L</p>
                 <p className="text-xs text-text-muted dark:text-text-dark-muted mt-1">
-                  Available: {Math.round((predictedPercent / 100) * tankCapacity)}L
+                  Available: {Math.round((predictedPercentWithRain / 100) * tankCapacity)}L
                 </p>
               </div>
             </div>
