@@ -4,11 +4,14 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from fastapi import HTTPException
-from app.schemas.rainfall import RainfallPredictRequest, RainfallPredictResponse, DayPrediction
+from app.schemas.rainfall import RainfallPredictRequest, RainfallPredictResponse, DayPrediction, RainfallSummaryResponse, RainfallRecommendation
+from app.database.models import ModelMetricsRecord
 from app.services.preprocessor import preprocessor
 from app.services.model_loader import ModelLoader
 from app.config import settings
 HORIZON_MAP = {"short": 1, "medium": 7, "long": 15}
+
+DATAFRAME_CACHE = None
 def load_local_csv(path: str):
     import pandas as pd
 
@@ -18,11 +21,54 @@ def load_local_csv(path: str):
 
     return df
 
+def get_cached_dataframe():
+    global DATAFRAME_CACHE
+    if DATAFRAME_CACHE is None:
+        DATAFRAME_CACHE = load_local_csv(settings.DATASET_PATH)
+    return DATAFRAME_CACHE
+
 class RainfallService:
+    async def get_model_summary(self, db_session: AsyncSession) -> RainfallSummaryResponse:
+        stmt = select(ModelMetricsRecord).where(ModelMetricsRecord.module == "rainfall").order_by(desc(ModelMetricsRecord.evaluated_at))
+        result = await db_session.execute(stmt)
+        metrics = result.scalars().all()
+
+        if not metrics:
+            return RainfallSummaryResponse(
+                best_model="LSTM",
+                confidence=0,
+                rmse=None,
+                nse=None,
+                r2=None,
+                recommendations=[]
+            )
+
+        rmse_metrics = [m for m in metrics if m.rmse is not None]
+        best_metric = min(rmse_metrics, key=lambda m: m.rmse) if rmse_metrics else metrics[0]
+
+        reliability_source = best_metric.nse if best_metric.nse is not None else 0
+        reliability_score = int(round(reliability_source * 100))
+        reliability_score = max(0, min(100, reliability_score))
+
+        recommendation = RainfallRecommendation(
+            tab="Rainfall",
+            model=best_metric.model_name,
+            confidence=reliability_score
+        )
+
+        return RainfallSummaryResponse(
+            best_model=best_metric.model_name,
+            confidence=reliability_score,
+            rmse=best_metric.rmse,
+            nse=best_metric.nse,
+            r2=best_metric.r2,
+            recommendations=[recommendation]
+        )
+
     async def predict(self, request: RainfallPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> RainfallPredictResponse:
         context_end = (request.start_date or date.today()) - timedelta(days=1)
         # df = await self._get_local_data(db_session, end_date=context_end, days=60)
-        df = load_local_csv(settings.DATASET_PATH)
+        df = get_cached_dataframe()
         
         prediction_date = request.start_date or (date.today() + timedelta(days=1))
 
@@ -36,6 +82,11 @@ class RainfallService:
         except Exception:
             predicted_mm = self._predict_from_recent_rainfall(df, request.days)
             model_used = f"{request.model} (recent-rainfall fallback)"
+
+        predicted_mm = np.asarray(predicted_mm, dtype=float)
+        if predicted_mm.size < request.days:
+            pad_value = float(predicted_mm[-1]) if predicted_mm.size else 0.0
+            predicted_mm = np.pad(predicted_mm, (0, request.days - predicted_mm.size), constant_values=pad_value)
 
         actual_days = min(request.days, len(predicted_mm))
 

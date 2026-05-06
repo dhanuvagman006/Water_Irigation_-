@@ -26,3 +26,16 @@ class RainfallPredictResponse(BaseModel):
     predictions: list[DayPrediction]
     model_used: str
     generated_at: datetime
+
+class RainfallRecommendation(BaseModel):
+    tab: str
+    model: str
+    confidence: int
+
+class RainfallSummaryResponse(BaseModel):
+    best_model: str
+    confidence: int
+    rmse: Optional[float] = None
+    nse: Optional[float] = None
+    r2: Optional[float] = None
+    recommendations: list[RainfallRecommendation]

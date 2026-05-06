@@ -16,7 +16,8 @@ export function formatPercentage(num: number): string {
   return `${Math.round(num)}%`
 }
 
-export function formatMetric(value: number, metric: string): string {
+export function formatMetric(value: number | null | undefined, metric: string): string {
+  if (value == null || Number.isNaN(value)) return '—'
   if (metric === 'r2' || metric === 'nse') return value.toFixed(3)
   if (metric === 'accuracy' || metric === 'f1') return (value * 100).toFixed(1) + '%'
   return value.toFixed(2)
@@ -51,7 +52,7 @@ export const MODEL_COLORS: Record<string, string> = {
   SimpleRNN: '#F59E0B',
 }
 
-export function normalizeModelName(backendName: string): string {
+export function normalizeModelName(backendName: string): import('../types').ModelName {
   const map: Record<string, string> = {
     lstm: 'LSTM',
     gru: 'GRU',
@@ -60,7 +61,7 @@ export function normalizeModelName(backendName: string): string {
     wlstm: 'WLSTM',
     simplernn: 'SimpleRNN',
   };
-  return map[backendName.toLowerCase()] || backendName;
+  return (map[backendName.toLowerCase()] || backendName) as import('../types').ModelName;
 }
 
 export const TANK_LEVEL_COLORS = {

@@ -132,6 +132,7 @@ class ModelLoader:
 
     async def load_scalers(self, scalers_dir: str):
         logger.info("Starting scaler loading sequence...")
+        self.scalers.clear()
         for module in self.modules:
             file_path = os.path.join(scalers_dir, f"{module}_scaler.pkl")
             try:
@@ -148,5 +149,33 @@ class ModelLoader:
         if module not in self.scalers:
             raise HTTPException(status_code=404, detail=f"Scaler for {module} not loaded")
         return self.scalers[module]
+
+    def validate_required(self):
+        if not settings.LOAD_MODELS:
+            logger.info("Model validation skipped because LOAD_MODELS is disabled.")
+            return
+
+        missing = []
+        for module in self.modules:
+            if module == "rainfall":
+                for name in self.expected_models:
+                    for suffix in HORIZON_SUFFIXES:
+                        key = f"{module}/{name}_{suffix}"
+                        if key not in self.models:
+                            missing.append(key)
+            else:
+                for name in self.expected_models:
+                    key = f"{module}/{name}"
+                    if key not in self.models:
+                        missing.append(key)
+
+        for module in self.modules:
+            if module not in self.scalers:
+                missing.append(f"{module}_scaler.pkl")
+
+        if missing:
+            raise RuntimeError(
+                "Missing required model/scaler artifacts: " + ", ".join(sorted(missing))
+            )
 
 model_loader = ModelLoader(settings.MODELS_DIR)

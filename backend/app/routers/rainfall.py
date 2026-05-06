@@ -2,10 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-from datetime import date
-from app.schemas.rainfall import RainfallPredictRequest, RainfallPredictResponse
+from app.schemas.rainfall import RainfallPredictRequest, RainfallPredictResponse, RainfallSummaryResponse
 from app.schemas.metrics import ModelMetricsResponse
-from app.database.models import RainfallRecord, ModelMetricsRecord, NASADataRecord
+from app.database.models import RainfallRecord, ModelMetricsRecord
 from app.dependencies import get_db, get_model_loader
 from app.services.rainfall_service import rainfall_service
 from app.services.model_loader import ModelLoader
@@ -52,22 +51,29 @@ async def predict(
 @router.get("/predict/latest")
 async def get_latest_predictions(model: str = "LSTM", days: int = 14, db: AsyncSession = Depends(get_db)):
     # Returns last saved rainfall predictions from DB
-    stmt = select(RainfallRecord).where(RainfallRecord.model_used == model).order_by(RainfallRecord.date.desc()).limit(days)
+    stmt = (
+        select(RainfallRecord)
+        .where(RainfallRecord.model_used.contains(model))
+        .order_by(RainfallRecord.date.desc())
+        .limit(days)
+    )
     result = await db.execute(stmt)
     records = result.scalars().all()
     return records
 
 @router.get("/metrics", response_model=List[ModelMetricsResponse])
 async def get_metrics(db: AsyncSession = Depends(get_db)):
-    stmt = select(ModelMetricsRecord).where(ModelMetricsRecord.module == "rainfall")
+    stmt = (
+        select(ModelMetricsRecord)
+        .where(ModelMetricsRecord.module == "rainfall")
+        .order_by(ModelMetricsRecord.evaluated_at.desc())
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
-@router.get("/history")
-async def get_history(start: date, end: date, db: AsyncSession = Depends(get_db)):
-    stmt = select(NASADataRecord).where(NASADataRecord.date >= start, NASADataRecord.date <= end).order_by(NASADataRecord.date.asc())
-    result = await db.execute(stmt)
-    return result.scalars().all()
+@router.get("/summary", response_model=RainfallSummaryResponse)
+async def get_summary(db: AsyncSession = Depends(get_db)):
+    return await rainfall_service.get_model_summary(db)
 
 @router.get("/health")
 async def get_health(loader: ModelLoader = Depends(get_model_loader)):

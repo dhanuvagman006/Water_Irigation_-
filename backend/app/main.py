@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,8 +10,7 @@ from app.config import settings
 from app.database.base import Base, engine
 from app.services.model_loader import model_loader, HORIZON_SUFFIXES
 from app.scheduler.jobs import scheduler
-from app.routers import rainfall, tank, irrigation, models, data
-from app.database.models import RainfallRecord, TankRecord, IrrigationRecord, ModelMetricsRecord
+from app.routers import rainfall, tank, irrigation, models
 
 logger = structlog.get_logger()
 
@@ -35,6 +34,9 @@ async def lifespan(app: FastAPI):
     
     logger.info("Loading scalers...")
     await model_loader.load_scalers(settings.SCALERS_DIR)
+
+    logger.info("Validating required model artifacts...")
+    model_loader.validate_required()
     
     logger.info("Starting APScheduler...")
     scheduler.start()
@@ -60,9 +62,6 @@ class ModelNotLoadedError(Exception):
     pass
 
 class InsufficientDataError(Exception):
-    pass
-
-class NASAFetchError(Exception):
     pass
 
 @app.exception_handler(ModelNotLoadedError)
@@ -131,7 +130,6 @@ app.include_router(rainfall.router, prefix="/api/rainfall", tags=["Rainfall"])
 app.include_router(tank.router, prefix="/api/tank", tags=["Tank"])
 app.include_router(irrigation.router, prefix="/api/irrigation", tags=["Irrigation"])
 app.include_router(models.router, prefix="/api/models", tags=["Models"])
-app.include_router(data.router, prefix="/api/data", tags=["Data"])
 
 @app.get("/health")
 async def health_check():

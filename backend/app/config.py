@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = getLogger(__name__)
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+MODELS_DIR = BACKEND_DIR / "models"
+SCALERS_DIR = BACKEND_DIR / "scalers"
 
 
 def _backend_path(path: str) -> str:
@@ -23,12 +25,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "AquaAI Backend"
     API_KEY: str = "dev_super_secret_key_123"
     DATABASE_URL: str = _sqlite_url(BACKEND_DIR / "aquaai.db")
-    MODELS_DIR: str = _backend_path("models")
-    SCALERS_DIR: str = _backend_path("scalers")
+    MODELS_DIR: str = str(MODELS_DIR)
+    SCALERS_DIR: str = str(SCALERS_DIR)
     DATASET_PATH: str = _backend_path("data/weather.csv")
     DATA_DIR: str = _backend_path("data")
-    NASA_LAT: float = 12.87
-    NASA_LON: float = 74.88
     DEFAULT_MODEL: str = "LSTM"
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",

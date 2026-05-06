@@ -35,9 +35,17 @@ def get_moisture_factor(soil_moisture: float) -> float:
 
 class IrrigationService:
     async def predict(self, request: IrrigationPredictRequest, model_loader: ModelLoader, db_session: AsyncSession) -> IrrigationPredictResponse:
-        rain_req = RainfallPredictRequest(model=settings.DEFAULT_MODEL, days=14)
+        rain_req = RainfallPredictRequest(model=settings.DEFAULT_MODEL, days=14, horizon="long")
         rain_resp = await rainfall_service.predict(rain_req, model_loader, db_session)
         rain_preds = [p.predicted_mm for p in rain_resp.predictions]
+
+        if len(rain_preds) < 14:
+            logger.warning(
+                "Rainfall horizon shorter than irrigation horizon; padding forecast from %s to 14 days.",
+                len(rain_preds),
+            )
+            pad_value = float(rain_preds[-1]) if rain_preds else 0.0
+            rain_preds = rain_preds + [pad_value] * (14 - len(rain_preds))
 
         temp_max = 30.0
 
@@ -46,6 +54,8 @@ class IrrigationService:
         plan = []
         total_water_liters = {crop: 0.0 for crop in request.crop_types}
         
+        planning_days = 14
+
         for crop in request.crop_types:
             stage = request.growth_stages.get(crop, "Vegetative")
             base_need = BASE_WATER_REQUIREMENTS.get(crop, {}).get(stage, 10)
@@ -53,7 +63,7 @@ class IrrigationService:
             
             current_moisture = request.soil_moisture
             
-            for i in range(14):
+            for i in range(planning_days):
                 rain_today = rain_preds[i]
                 rain_d2 = rain_preds[i + 1] if i + 1 < len(rain_preds) else 0.0
                 rain_d3 = rain_preds[i + 2] if i + 2 < len(rain_preds) else 0.0

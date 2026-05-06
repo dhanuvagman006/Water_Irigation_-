@@ -47,15 +47,3 @@ class ModelMetricsRecord(Base):
     f1 = Column(Float, nullable=True)
     evaluated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-class NASADataRecord(Base):
-    __tablename__ = "nasa_data"
-    id = Column(Integer, primary_key=True, index=True)
-    date = Column(Date, unique=True, index=True)
-    precipitation_mm = Column(Float)
-    temp_max = Column(Float)
-    temp_min = Column(Float)
-    humidity = Column(Float)
-    wind_speed = Column(Float)
-    solar_radiation = Column(Float)
-    pressure = Column(Float)
-    fetched_at = Column(DateTime, default=datetime.datetime.utcnow)

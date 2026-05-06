@@ -8,17 +8,34 @@ export type RainfallPrediction = {
   date: string            // ISO date string
   predicted_mm: number
   actual_mm?: number      // optional, if available
-  model: ModelName
+  model?: ModelName
+  confidence_low?: number
+  confidence_high?: number
 }
 
 export type ModelMetrics = {
   model: ModelName
-  rmse: number
-  mae: number
-  r2: number
-  nse: number
+  rmse: number | null
+  mae: number | null
+  r2: number | null
+  nse: number | null
   f1?: number
   accuracy?: number
+}
+
+export type RainfallRecommendation = {
+  tab: string
+  model: ModelName
+  confidence: number
+}
+
+export type RainfallSummary = {
+  best_model: ModelName
+  confidence: number
+  rmse?: number
+  nse?: number
+  r2?: number
+  recommendations: RainfallRecommendation[]
 }
 
 export type TankLevel = 'Low' | 'Medium' | 'Full'

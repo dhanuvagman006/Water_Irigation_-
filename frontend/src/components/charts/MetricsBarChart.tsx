@@ -16,6 +16,9 @@ export default function MetricsBarChart({ data, metric = 'rmse', title }: Metric
       model: d.model,
       value: d[metric],
     }))
+    .filter((entry): entry is { model: ModelMetrics['model']; value: number } =>
+      typeof entry.value === 'number' && Number.isFinite(entry.value)
+    )
     .sort((a, b) => (metric === 'r2' || metric === 'nse' ? b.value - a.value : a.value - b.value))
 
   const metricLabels: Record<string, string> = {

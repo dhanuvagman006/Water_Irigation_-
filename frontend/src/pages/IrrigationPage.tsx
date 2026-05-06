@@ -200,7 +200,7 @@ export default function IrrigationPage() {
           <AlertCard 
             type="danger" 
             title="Generation Failed" 
-            message={mutation.error.message || "Failed to generate irrigation plan. Check NASA data."} 
+            message={mutation.error.message || "Failed to generate irrigation plan. Check backend data source."} 
           />
         )}
 

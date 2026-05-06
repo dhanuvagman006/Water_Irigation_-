@@ -12,10 +12,10 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, GRU, Dense, Dropout, Bidirectional, Conv1D, MaxPooling1D, SimpleRNN
 
 # ---------------- CONFIG ----------------
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DATA_PATH = ROOT_DIR / "data" / "weather.csv"
-MODELS_DIR = "models/rainfall"
-SCALER_PATH = "scalers/rainfall_scaler.pkl"
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+DATA_PATH = BACKEND_DIR / "data" / "weather.csv"
+MODELS_DIR = BACKEND_DIR / "models" / "rainfall"
+SCALER_PATH = BACKEND_DIR / "scalers" / "rainfall_scaler.pkl"
 
 WINDOW_SIZE = 60
 HORIZONS = [1, 7, 15]
@@ -23,7 +23,7 @@ EPOCHS = 30
 BATCH_SIZE = 32
 
 os.makedirs(MODELS_DIR, exist_ok=True)
-os.makedirs("scalers", exist_ok=True)
+os.makedirs(SCALER_PATH.parent, exist_ok=True)
 
 # ---------------- LOAD DATA ----------------
 df = pd.read_csv(DATA_PATH)
@@ -55,8 +55,15 @@ FEATURES = [
 ]
 
 # ---------------- SCALING ----------------
+split_idx = int(0.8 * len(df))
+train_df = df.iloc[:split_idx].copy()
+val_df = df.iloc[split_idx:].copy()
+
 scaler = MinMaxScaler()
-scaled = scaler.fit_transform(df[FEATURES])
+scaler.fit(train_df[FEATURES])
+scaled_train = scaler.transform(train_df[FEATURES])
+scaled_val = scaler.transform(val_df[FEATURES]) if len(val_df) else np.empty((0, len(FEATURES)))
+scaled = np.concatenate([scaled_train, scaled_val], axis=0) if len(scaled_val) else scaled_train
 joblib.dump(scaler, SCALER_PATH)
 
 def make_sequences(scaled_data: np.ndarray, window_size: int, horizon: int):
@@ -157,14 +164,14 @@ for horizon in HORIZONS:
             ]
         )
 
-        model.save(f"{MODELS_DIR}/{name}_{horizon}d.keras")
+        model.save(str(MODELS_DIR / f"{name}_{horizon}d.keras"))
 
         plt.figure()
         plt.plot(history.history['loss'], label='train')
         plt.plot(history.history['val_loss'], label='val')
         plt.title(f"{name} Loss ({horizon}d)")
         plt.legend()
-        plt.savefig(f"{MODELS_DIR}/{name}_{horizon}d_loss.png")
+        plt.savefig(str(MODELS_DIR / f"{name}_{horizon}d_loss.png"))
         plt.close()
 
         pred = model.predict(X_val)

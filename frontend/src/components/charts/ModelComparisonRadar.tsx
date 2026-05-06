@@ -10,8 +10,10 @@ interface ModelComparisonRadarProps {
 export default function ModelComparisonRadar({ data, title = 'Model Comparison' }: ModelComparisonRadarProps) {
   // Normalize metrics for radar chart (all axes should be 0-1 where higher is better)
   // For RMSE and MAE, we invert (1 - normalized) so lower is better on chart
-  const maxRmse = Math.max(...data.map((d) => d.rmse))
-  const maxMae = Math.max(...data.map((d) => d.mae))
+  const finiteRmse = data.map((d) => d.rmse).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const finiteMae = data.map((d) => d.mae).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const maxRmse = finiteRmse.length > 0 ? Math.max(...finiteRmse) : 1
+  const maxMae = finiteMae.length > 0 ? Math.max(...finiteMae) : 1
 
   const radarData = [
     {

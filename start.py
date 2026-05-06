@@ -8,22 +8,39 @@ ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
 ML_DIR = BACKEND / "app" / "ml"
-MODELS_DIR = ML_DIR / "models" / "rainfall"
+MODELS_DIR = BACKEND / "models" / "rainfall"
+SCALER_PATH = BACKEND / "scalers" / "rainfall_scaler.pkl"
 
 REQUIRED_MODELS = [
     "lstm_1d.keras",
     "lstm_7d.keras",
     "lstm_15d.keras",
+    "gru_1d.keras",
+    "gru_7d.keras",
+    "gru_15d.keras",
+    "bilstm_1d.keras",
+    "bilstm_7d.keras",
+    "bilstm_15d.keras",
+    "cnn_lstm_1d.keras",
+    "cnn_lstm_7d.keras",
+    "cnn_lstm_15d.keras",
+    "simplernn_1d.keras",
+    "simplernn_7d.keras",
+    "simplernn_15d.keras",
+    "wlstm_1d.keras",
+    "wlstm_7d.keras",
+    "wlstm_15d.keras",
 ]
-
 
 def models_exist():
     if not MODELS_DIR.exists():
         return False
-
     for model in REQUIRED_MODELS:
         if not (MODELS_DIR / model).exists():
             return False
+
+    if not SCALER_PATH.exists():
+        return False
 
     return True
 
@@ -97,10 +114,9 @@ if __name__ == "__main__":
     frontend_process = start_frontend()
 
     print("\n===================================")
-    print(" Backend : http://localhost:8000")
+    print(" Backend : http://localhost:8001")
     print(" Frontend: http://localhost:5173")
     print("===================================\n")
-
     try:
         backend_process.wait()
         frontend_process.wait()

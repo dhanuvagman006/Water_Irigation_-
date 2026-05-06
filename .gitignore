@@ -14,8 +14,6 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Environment files (keep examples)
-
 
 backend/app/ml/
 .venv

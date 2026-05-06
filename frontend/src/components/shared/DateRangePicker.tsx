@@ -8,19 +8,25 @@ interface DateRangePickerProps {
 }
 
 export default function DateRangePicker({ startDate, endDate, onStartChange, onEndChange }: DateRangePickerProps) {
+  const formatInputDate = (value: Date) => format(value, 'yyyy-MM-dd')
+  const parseInputDate = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+
   return (
     <div className="flex items-center gap-2">
       <input
         type="date"
-        value={format(startDate, 'yyyy-MM-dd')}
-        onChange={(e) => onStartChange(new Date(e.target.value))}
+        value={formatInputDate(startDate)}
+        onChange={(e) => onStartChange(parseInputDate(e.target.value))}
         className="input text-sm"
       />
       <span className="text-text-muted dark:text-text-dark-muted text-sm">to</span>
       <input
         type="date"
-        value={format(endDate, 'yyyy-MM-dd')}
-        onChange={(e) => onEndChange(new Date(e.target.value))}
+        value={formatInputDate(endDate)}
+        onChange={(e) => onEndChange(parseInputDate(e.target.value))}
         className="input text-sm"
       />
     </div>

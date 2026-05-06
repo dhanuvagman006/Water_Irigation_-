@@ -110,6 +110,26 @@ export default function RainfallPage() {
     return Array.from(latestMetricsMap.values())
   }, [metrics])
 
+  const rmseBest = useMemo(() => {
+    const values = filteredMetrics.map((m) => m.rmse).filter((value): value is number => value != null)
+    return values.length > 0 ? Math.min(...values) : null
+  }, [filteredMetrics])
+
+  const maeBest = useMemo(() => {
+    const values = filteredMetrics.map((m) => m.mae).filter((value): value is number => value != null)
+    return values.length > 0 ? Math.min(...values) : null
+  }, [filteredMetrics])
+
+  const r2Best = useMemo(() => {
+    const values = filteredMetrics.map((m) => m.r2).filter((value): value is number => value != null)
+    return values.length > 0 ? Math.max(...values) : null
+  }, [filteredMetrics])
+
+  const nseBest = useMemo(() => {
+    const values = filteredMetrics.map((m) => m.nse).filter((value): value is number => value != null)
+    return values.length > 0 ? Math.max(...values) : null
+  }, [filteredMetrics])
+
   const hasActual = useMemo(() => (rainfall ?? []).some((r) => r.actual_mm != null), [rainfall])
 
   const metricColumns = useMemo(() => [
@@ -121,7 +141,7 @@ export default function RainfallPage() {
       header: 'RMSE',
       cell: (info) => {
         const val = info.getValue()
-        const best = filteredMetrics.length > 0 ? Math.min(...filteredMetrics.map((m) => m.rmse)) : -1
+        const best = rmseBest
         if (val == null) return <span className="text-text-muted text-sm">—</span>
         return (
           <span className={`font-mono text-sm ${val === best ? 'text-primary font-bold' : ''}`}>
@@ -134,7 +154,7 @@ export default function RainfallPage() {
       header: 'MAE',
       cell: (info) => {
         const val = info.getValue()
-        const best = filteredMetrics.length > 0 ? Math.min(...filteredMetrics.map((m) => m.mae)) : -1
+        const best = maeBest
         if (val == null) return <span className="text-text-muted text-sm">—</span>
         return (
           <span className={`font-mono text-sm ${val === best ? 'text-primary font-bold' : ''}`}>
@@ -147,7 +167,7 @@ export default function RainfallPage() {
       header: 'R²',
       cell: (info) => {
         const val = info.getValue()
-        const best = filteredMetrics.length > 0 ? Math.max(...filteredMetrics.map((m) => m.r2)) : -1
+        const best = r2Best
         if (val == null) return <span className="text-text-muted text-sm">—</span>
         return (
           <span className={`font-mono text-sm ${val === best ? 'text-primary font-bold' : ''}`}>
@@ -160,7 +180,7 @@ export default function RainfallPage() {
       header: 'NSE',
       cell: (info) => {
         const val = info.getValue()
-        const best = filteredMetrics.length > 0 ? Math.max(...filteredMetrics.map((m) => m.nse)) : -1
+        const best = nseBest
         if (val == null) return <span className="text-text-muted text-sm">—</span>
         return (
           <span className={`font-mono text-sm ${val === best ? 'text-primary font-bold' : ''}`}>
@@ -169,7 +189,7 @@ export default function RainfallPage() {
         )
       },
     }),
-  ], [filteredMetrics])
+  ], [maeBest, nseBest, r2Best, rmseBest])
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({

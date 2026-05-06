@@ -6,7 +6,7 @@ This is the FastAPI backend for the AI-Based Water Management System.
 - **Framework**: FastAPI + Uvicorn
 - **Database**: SQLite (async via `aiosqlite` and `SQLAlchemy`, structured by `Alembic`)
 - **ML Runtime**: TensorFlow + Joblib scalers
-- **Scheduler**: APScheduler connected to NASA POWER REST API for automatic data pipeline updates
+- **Scheduler**: APScheduler for optional model warmup tasks
 
 ## Setup
 
