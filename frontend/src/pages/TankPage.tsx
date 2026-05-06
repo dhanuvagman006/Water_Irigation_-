@@ -115,9 +115,7 @@ export default function TankPage() {
                 }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold font-mono text-white drop-shadow-md">
-                  {predictedPercentWithRain.toFixed(0)}%
-                </span>
+                <span className="text-lg font-bold font-mono text-white drop-shadow-md" />
               </div>
             </div>
           </div>
@@ -199,7 +197,9 @@ export default function TankPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">0%</span>
-                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">{predictedPercentWithRain.toFixed(0)}%</span>
+                  <span className="text-sm font-mono font-bold text-text-primary dark:text-white">
+                    {predictedPercentWithRain.toFixed(0)}% ({rainfallLiters}L)
+                  </span>
                   <span className="text-xs text-text-muted dark:text-text-dark-muted">100%</span>
                 </div>
               </div>
